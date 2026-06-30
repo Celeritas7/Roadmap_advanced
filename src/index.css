@@ -1,0 +1,761 @@
+/* ════════════════════════════════════════════════════════════════════
+   Roadmap — "Journey" redesign · foundation + first vertical slice
+   ─────────────────────────────────────────────────────────────────────
+   Layer 1 (foundation): tokens, the three directions (data-theme), role
+   personality (data-role).
+   Layer 2 (this slice): filter popover/sheet, priority dim, error banner.
+   Header / role tier / focus cards / route map / log CSS land in later
+   steps. Fonts are loaded via the <link> in index.html.
+   ════════════════════════════════════════════════════════════════════ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── shared aliases ─── */
+:root {
+  --ui: 'Hanken Grotesk', system-ui, sans-serif;
+  --display: 'Space Grotesk', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--canvas, #fbfbf9);
+  color: var(--ink, #16181d);
+  font-family: var(--ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* The app root carries data-theme + data-role. It is the token context AND
+   the positioning context for the portaled mobile filter sheet, so it must
+   be height-constrained with an inner scroll region (mirrors the old `.lat`
+   scroll root). `position: absolute; bottom: 0` on the sheet then pins to
+   the viewport, NOT to the backdrop-filtered header. */
+.rm {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-feature-settings: "ss01";
+  isolation: isolate;
+  --rad: 14px;
+  --rad-sm: 9px;
+}
+.rm ::selection { background: var(--accent); color: var(--on-accent); }
+.rm-scroll { height: 100%; overflow-y: auto; overflow-x: hidden; }
+
+/* ════════════════════════════════════════════════════════════════════
+   DIRECTIONS (data-theme)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Trailhead — clean / light / route line ── */
+.rm[data-theme="trailhead"] {
+  --canvas: #fbfbf9;  --panel: #ffffff;  --panel-2: #f6f6f3;
+  --ink: #16181d;  --ink-2: #565a63;  --ink-3: #9a9ea7;  --ink-4: #c6c9d0;
+  --rule: #ecece8;  --rule-strong: #dedfda;  --hover: rgba(20,22,28,.04);
+  --accent: #3b6ef0;  --accent-soft: #eaf0fe;  --accent-ink: #2452cc;  --on-accent: #ffffff;
+  --shadow-card: 0 1px 2px rgba(16,18,29,.04), 0 4px 16px rgba(16,18,29,.04);
+  --shadow-pop: 0 12px 40px rgba(16,18,29,.14), 0 0 0 1px rgba(16,18,29,.05);
+  --card-bd: 1px solid var(--rule);
+  --road: #d4d7d1;  --road-edge: #c3c7c0;  --lane: #ffffff;
+}
+
+/* ── Summit — dark tactical board / ascent ── */
+.rm[data-theme="summit"] {
+  --canvas: #0a0c10;  --panel: #14171e;  --panel-2: #1b1f28;
+  --ink: #eef1f7;  --ink-2: #a4abba;  --ink-3: #6b7280;  --ink-4: #444b57;
+  --rule: #232834;  --rule-strong: #2f3542;  --hover: rgba(255,255,255,.045);
+  --accent: #5b8cff;  --accent-soft: rgba(91,140,255,.14);  --accent-ink: #9db8ff;  --on-accent: #08111f;
+  --shadow-card: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.35);
+  --shadow-pop: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06);
+  --card-bd: 1px solid var(--rule);
+  --road: #2b323f;  --road-edge: #39414f;  --lane: rgba(170,190,230,.5);
+}
+/* faint tactical field + role-hued top glow */
+.rm[data-theme="summit"]::before {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% -10%, hsl(var(--role-h, 220) 72% 60% / .17), transparent 60%),
+    linear-gradient(transparent 0 39px, rgba(255,255,255,.018) 39px 40px),
+    linear-gradient(90deg, transparent 0 39px, rgba(255,255,255,.018) 39px 40px);
+  background-size: auto, 40px 40px, 40px 40px;
+}
+.rm[data-theme="summit"] > * { position: relative; z-index: 1; }
+
+/* ── Field Guide — warm editorial / expedition journal ── */
+.rm[data-theme="fieldguide"] {
+  --canvas: #f3ede1;  --panel: #faf6ec;  --panel-2: #f1ead9;
+  --ink: #211c14;  --ink-2: #5e564a;  --ink-3: #9b9384;  --ink-4: #c4bba8;
+  --rule: #e3dac6;  --rule-strong: #d2c6ac;  --hover: rgba(33,28,20,.04);
+  --accent: #2f64df;  --accent-soft: #e4ebfb;  --accent-ink: #244fb3;  --on-accent: #ffffff;
+  --shadow-card: 0 1px 2px rgba(80,60,30,.05), 0 6px 20px rgba(80,60,30,.06);
+  --shadow-pop: 0 16px 48px rgba(80,60,30,.18), 0 0 0 1px rgba(80,60,30,.07);
+  --card-bd: 1px solid var(--rule-strong);
+  --road: #dccfb2;  --road-edge: #cbbd9b;  --lane: #fcf8ef;
+  --display: 'Instrument Serif', Georgia, serif;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ROLE PERSONALITY (data-role) — the active tier washes the canvas and
+   shifts the accent. Layers on top of any direction.
+   ════════════════════════════════════════════════════════════════════ */
+.rm[data-role="attackers"]  { --role-h: 18; }   /* warm / ambitions    */
+.rm[data-role="midplayers"] { --role-h: 158; }  /* green / life-support */
+.rm[data-role="defenders"]  { --role-h: 252; }  /* indigo / self-care   */
+
+.rm[data-role] {
+  --accent: hsl(var(--role-h) 62% 50%);
+  --accent-soft: hsl(var(--role-h) 62% 55% / .12);
+  --accent-ink: hsl(var(--role-h) 52% 40%);
+  background-image: radial-gradient(135% 62% at 50% -8%, hsl(var(--role-h) 65% 52% / .14), transparent 60%);
+}
+
+/* trailhead (light): tint the off-white canvas per tier */
+.rm[data-theme="trailhead"][data-role="attackers"]  { --canvas: #fcf7f3; }
+.rm[data-theme="trailhead"][data-role="midplayers"] { --canvas: #f4faf6; }
+.rm[data-theme="trailhead"][data-role="defenders"]  { --canvas: #f4f6fd; }
+
+/* field guide (warm paper): shift the paper tone + darker accent */
+.rm[data-theme="fieldguide"][data-role] {
+  --accent: hsl(var(--role-h) 52% 44%);
+  --accent-ink: hsl(var(--role-h) 48% 36%);
+  background-image: radial-gradient(135% 62% at 50% -6%, hsl(var(--role-h) 50% 50% / .16), transparent 60%);
+}
+.rm[data-theme="fieldguide"][data-role="attackers"]  { --canvas: #f5ecdd; }
+.rm[data-theme="fieldguide"][data-role="midplayers"] { --canvas: #edf1e2; }
+.rm[data-theme="fieldguide"][data-role="defenders"]  { --canvas: #eaedf3; }
+
+/* summit (dark): brighter accent, role-hued glow via ::before, tinted base */
+.rm[data-theme="summit"][data-role] {
+  --accent: hsl(var(--role-h) 74% 66%);
+  --accent-soft: hsl(var(--role-h) 60% 52% / .18);
+  --accent-ink: hsl(var(--role-h) 78% 74%);
+  background-image: none;
+}
+.rm[data-theme="summit"][data-role="attackers"]  { --canvas: #110c0a; }
+.rm[data-theme="summit"][data-role="midplayers"] { --canvas: #090f0c; }
+.rm[data-theme="summit"][data-role="defenders"]  { --canvas: #0a0b13; }
+
+/* ════════════════════════════════════════════════════════════════════
+   STEP 2 SHELL — sticky header, role tier (daypart + role chips), subbar.
+   Additive to the foundation: reuses its tokens, the data-role personality
+   wash above, and the Slice-1 .rm-btn / .rm-clear / .filterwrap / .badge
+   affordances (NOT redefined here). Per-chip hue comes from an inline
+   `--h` set by RoleChip; role-tier accent/canvas tints already live above.
+   Mobile uses the foundation's @media(max-width:768px) breakpoint (not the
+   prototype's data-vp), so it composes with the existing filter-sheet rules.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* content region below the sticky header (horizontal rhythm matches header) */
+.rm .rm-pad { padding: 0 28px 96px; }
+
+/* ─── sticky HEADER — anchored in .rm-scroll (the height-constrained root) ─── */
+.rm .rm-header {
+  position: sticky; top: 0; z-index: 6;
+  background: color-mix(in srgb, var(--canvas) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border-bottom: 1px solid var(--rule);
+  padding: 18px 28px 0;
+}
+.rm .rm-toprow { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.rm .rm-brand { display: flex; align-items: baseline; gap: 11px; min-width: 0; }
+.rm .rm-mark {
+  font-family: var(--display); font-weight: 600; letter-spacing: -0.02em;
+  font-size: 22px; line-height: 1; color: var(--ink); margin: 0;
+  display: flex; align-items: center; gap: 9px;
+}
+.rm[data-theme="fieldguide"] .rm-mark { font-weight: 400; font-size: 28px; letter-spacing: 0; }
+.rm .rm-mark .glyph {
+  width: 22px; height: 22px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.rm .rm-mark .glyph svg { width: 100%; height: 100%; }
+.rm .rm-kbd { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); letter-spacing: 0.02em; }
+.rm .rm-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.rm .rm-datepill {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
+  background: var(--panel); border: 1px solid var(--rule-strong);
+  padding: 5px 11px; border-radius: 7px; font-feature-settings: "tnum"; white-space: nowrap;
+}
+.rm .rm-week { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+
+/* theme switcher — segmented control in rm-meta, styled off the datepill tokens */
+.rm .rm-theme-switch {
+  display: inline-flex; align-items: center; gap: 1px;
+  background: var(--canvas); border: 1px solid var(--rule-strong);
+  border-radius: 7px; padding: 2px;
+}
+.rm .rm-theme-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 20px; padding: 0;
+  border: 0; border-radius: 5px; background: transparent;
+  color: var(--ink-3); cursor: pointer;
+  transition: color .15s ease, background .15s ease;
+}
+.rm .rm-theme-btn:hover { color: var(--ink-2); }
+.rm .rm-theme-btn.active { background: var(--panel); color: var(--accent); }
+.rm .rm-theme-btn svg { width: 14px; height: 14px; display: block; }
+.rm .rm-theme-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* personality tagline — colored by --role-h from the data-role wash above */
+.rm .rm-mood {
+  font-size: 12px; font-style: italic; color: hsl(var(--role-h, 220) 46% 46%);
+  letter-spacing: .005em; transition: color .3s;
+}
+.rm[data-theme="summit"] .rm-mood { color: hsl(var(--role-h, 220) 62% 72%); }
+.rm[data-theme="fieldguide"] .rm-mood { font-family: var(--display); font-style: italic; font-size: 14px; }
+
+/* ─── ROLE TIER (daypart marker + role chips) ─── */
+.rm .rm-roles { display: flex; align-items: stretch; gap: 8px; padding: 13px 0 14px; }
+.rm .daypart {
+  display: flex; align-items: center; gap: 9px; padding-right: 14px;
+  margin-right: 4px; border-right: 1px solid var(--rule); flex-shrink: 0;
+}
+.rm .daypart .dp-glyph {
+  font-size: 17px; line-height: 1; color: var(--accent);
+  width: 26px; height: 26px; display: grid; place-items: center;
+  border-radius: 8px; background: var(--accent-soft);
+}
+.rm .daypart .dp-meta { display: flex; flex-direction: column; line-height: 1.25; }
+.rm .daypart .dp-now { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.rm .daypart .dp-h { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); font-feature-settings: "tnum"; }
+
+.rm .role-chip {
+  appearance: none; cursor: pointer; font: inherit; text-align: left;
+  background: var(--panel); border: 1px solid var(--rule);
+  border-radius: 11px; padding: 8px 13px 8px 11px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  transition: transform .14s, border-color .14s, background .14s, box-shadow .14s, opacity .14s;
+}
+.rm .role-chip:hover { border-color: var(--rule-strong); transform: translateY(-1px); }
+.rm .role-chip .rc-badge {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  background: hsl(var(--h) 60% 50% / .13); color: hsl(var(--h) 55% 42%);
+  border: 1px solid hsl(var(--h) 50% 50% / .22);
+}
+.rm[data-theme="summit"] .role-chip .rc-badge { color: hsl(var(--h) 75% 72%); background: hsl(var(--h) 60% 55% / .16); }
+.rm .role-chip .rc-text { display: flex; flex-direction: column; line-height: 1.2; }
+.rm .role-chip .rc-name { font-size: 13.5px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.rm .role-chip .rc-sub { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: 0.01em; }
+.rm .role-chip .rc-mini { font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); font-feature-settings: "tnum"; margin-left: 2px; }
+.rm .role-chip.active {
+  border-color: hsl(var(--h) 55% 50% / .5);
+  box-shadow: 0 0 0 1px hsl(var(--h) 55% 50% / .35), var(--shadow-card);
+  background: hsl(var(--h) 60% 50% / .05);
+}
+.rm[data-theme="summit"] .role-chip.active { background: hsl(var(--h) 60% 50% / .1); }
+/* #fff here is an intentional contrast constant: white-on-saturated-hue reads
+   in all three directions — --on-accent flips dark in summit, which is wrong
+   against this filled hued badge. The one non-token color in the section. */
+.rm .role-chip.active .rc-badge { background: hsl(var(--h) 60% 50%); color: #fff; border-color: transparent; }
+.rm[data-theme="summit"] .role-chip.active .rc-badge { box-shadow: 0 0 14px hsl(var(--h) 70% 55% / .6); }
+.rm .role-chip.idle { opacity: 0.62; }
+.rm .role-chip.idle:hover { opacity: 0.9; }
+
+/* ─── SUBBAR (view title · filter · clear) — filter/clear styles inherited ─── */
+.rm .rm-subbar { display: flex; align-items: center; gap: 12px; padding: 4px 0 16px; }
+.rm .rm-viewtitle {
+  display: flex; align-items: center; gap: 9px; min-width: 0;
+  font-family: var(--display); font-size: 14px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em;
+}
+.rm[data-theme="fieldguide"] .rm-viewtitle { font-family: var(--ui); font-weight: 700; }
+.rm .rm-viewtitle .vt-back {
+  appearance: none; border: 1px solid var(--rule-strong); background: var(--panel);
+  cursor: pointer; color: var(--ink-2); border-radius: 7px; width: 28px; height: 28px;
+  display: grid; place-items: center; transition: all .12s;
+}
+.rm .rm-viewtitle .vt-back:hover { color: var(--ink); border-color: var(--ink-3); }
+.rm .rm-viewtitle .vt-crumb { color: var(--ink-3); font-family: var(--mono); font-size: 11px; font-weight: 400; }
+.rm .rm-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* Step 2 shell — mobile (matches the foundation's filter-sheet breakpoint) */
+@media (max-width: 768px) {
+  .rm .rm-pad { padding: 0 16px 120px; }
+  .rm .rm-header { padding: 18px 16px 0; }
+  .rm .rm-kbd, .rm .rm-week, .rm .rm-mood, .rm .rm-datepill { display: none; }
+  .rm .rm-roles { overflow-x: auto; scrollbar-width: none; padding: 12px 0 13px; }
+  .rm .rm-roles::-webkit-scrollbar { display: none; }
+  .rm .role-chip .rc-mini { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SLICE 1 COMPONENTS — filter (popover/sheet), priority dim, error banner.
+   (Surrounding shell — header, subbar, route map — arrives in later steps;
+   the route map is what emits `.rt-row.dimmed`.)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ─── shared button affordances (also used by the subbar in Step 2) ─── */
+.rm .filterwrap { position: relative; }
+.rm .rm-btn {
+  appearance: none; cursor: pointer; font: inherit; font-size: 12.5px;
+  border: 1px solid var(--rule-strong); background: var(--panel); color: var(--ink-2);
+  padding: 6px 12px; border-radius: 8px; min-height: 32px;
+  display: inline-flex; align-items: center; gap: 7px; transition: all .12s;
+}
+.rm .rm-btn:hover { border-color: var(--ink-3); color: var(--ink); }
+.rm .rm-btn svg { width: 13px; height: 13px; }
+.rm .rm-btn.live { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.rm .rm-btn .badge {
+  background: var(--accent); color: var(--on-accent); font-family: var(--mono);
+  font-size: 10px; padding: 1px 6px; border-radius: 7px; font-feature-settings: "tnum";
+}
+.rm .rm-clear {
+  appearance: none; cursor: pointer; font: inherit; font-size: 11.5px;
+  border: 0; background: transparent; color: var(--ink-3); padding: 6px 8px; border-radius: 6px;
+}
+.rm .rm-clear:hover:not(:disabled) { color: var(--ink); background: var(--hover); }
+.rm .rm-clear:disabled { opacity: 0.4; cursor: default; }
+
+/* ─── FILTER popover (desktop) ─── */
+.rm .filter-pop {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: 360px;
+  background: var(--panel); border: 1px solid var(--rule-strong); border-radius: var(--rad);
+  box-shadow: var(--shadow-pop); overflow: hidden;
+}
+.rm .filter-backdrop { display: none; }
+.rm .filter-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--rule);
+}
+.rm .filter-head h4 { margin: 0; font-family: var(--display); font-size: 14px; font-weight: 600; color: var(--ink); }
+.rm[data-theme="fieldguide"] .filter-head h4 { font-family: var(--ui); font-weight: 700; }
+.rm .filter-close { display: none; appearance: none; border: 0; background: transparent; cursor: pointer; color: var(--ink-3); font-size: 22px; line-height: 1; }
+.rm .filter-group { padding: 13px 16px; border-top: 1px solid var(--rule); }
+.rm .filter-group:first-of-type { border-top: 0; }
+.rm .filter-glabel {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 9px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3);
+}
+.rm .filter-glabel .tag-mode { color: var(--ink-4); text-transform: none; letter-spacing: 0; margin-left: auto; }
+.rm .filter-opts { display: flex; flex-wrap: wrap; gap: 7px; }
+.rm .fchip {
+  appearance: none; cursor: pointer; font: inherit; font-size: 12px;
+  border: 1px solid var(--rule-strong); background: var(--panel); color: var(--ink-2);
+  padding: 6px 11px; border-radius: 8px; transition: all .12s;
+  display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono);
+}
+.rm .fchip .at { color: var(--ink-4); }
+.rm .fchip:hover { border-color: var(--ink-3); color: var(--ink); }
+.rm .fchip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.rm .fchip.on .at { color: var(--on-accent); opacity: .7; }
+.rm .fchip.on.prio { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+.rm .fchip.on.prio .at { color: var(--accent-ink); }
+.rm .filter-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-top: 1px solid var(--rule); background: var(--panel-2);
+}
+.rm .filter-foot .ct { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+
+/* ─── priority DIM (campaign mode): kept on screen at ~30%, not hidden ─── */
+.rm .rt-row.dimmed { opacity: .32; }
+
+/* ─── dismissible ERROR BANNER (optimistic rollback keeps the tree intact;
+       this must never blank the body) ─── */
+.rm .err-banner {
+  display: flex; align-items: center; gap: 11px; margin: 14px 0 0;
+  padding: 11px 14px; border-radius: var(--rad-sm);
+  background: hsl(8 70% 96%); border: 1px solid hsl(8 60% 86%); color: hsl(8 55% 38%); font-size: 12.5px;
+}
+.rm[data-theme="summit"] .err-banner { background: hsl(8 50% 22% / .5); border-color: hsl(8 50% 40%); color: hsl(8 80% 80%); }
+.rm .err-banner .eb-icon { flex-shrink: 0; font-size: 15px; }
+.rm .err-banner .eb-msg { flex: 1; }
+/* Dismiss only for now; the Retry affordance (op-level re-attempt) lands with
+   the dedicated ErrorBanner in Step 5 — see App.tsx. */
+.rm .err-banner .eb-dismiss {
+  appearance: none; cursor: pointer; font: inherit; font-size: 11.5px; padding: 4px 11px; border-radius: 6px;
+  border: 1px solid transparent; background: transparent; color: inherit; opacity: .8;
+}
+.rm .err-banner .eb-dismiss:hover { opacity: 1; background: rgba(0,0,0,.05); }
+
+/* ════════════════════════════════════════════════════════════════════
+   MOBILE (≤768px): the filter becomes a portaled bottom sheet. It is
+   portaled to `.rm` (sibling of `.rm-scroll`), so `position: absolute`
+   anchors to the viewport-height root — escaping the header's
+   backdrop-filter containing block.
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .rm .filter-backdrop {
+    display: block; position: absolute; inset: 0; z-index: 40;
+    background: rgba(0,0,0,.4); animation: fadein .18s ease-out;
+  }
+  .rm .filter-pop {
+    position: absolute; inset: auto 0 0 0; top: auto; width: 100%;
+    border-radius: 18px 18px 0 0; z-index: 41;
+    animation: sheetup .22s cubic-bezier(.4,0,.1,1); max-height: 86%; overflow-y: auto;
+  }
+  .rm .filter-close { display: block; }
+  .rm .fchip { padding: 9px 13px; font-size: 13px; }
+}
+@keyframes sheetup { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+
+/* ════════════════════════════════════════════════════════════════════
+   STEP 3 — FOCUS FOLDER CARDS (minimal)
+   ─────────────────────────────────────────────────────────────────────
+   Visual card treatment for the Focus folder view. Scope is the card
+   CHROME + head only: container, per-folder hue accent, mute/active
+   states. The route-track, "next stop" panel, done/total split and
+   footer/"View all" are V2-A and intentionally ABSENT — no DOM emitted
+   for them, so nothing reads per-task done/next selection here.
+
+   Additive: `.fbar`/`.flabel`/`.focus-grid`/`.folder-card`/`.fc-*` were
+   undefined before this step (the body rendered unstyled after Step 1),
+   so these rules override nothing. Everything reads existing tokens plus
+   the per-card `--h` (project hue, set inline by FolderTab). Role-tint
+   is NOT re-derived here: it composes from the data-role wash on `.rm`
+   (accent/canvas) plus the `.muted` flag FoldersRow computes from
+   useEffectiveRoleId() — see FoldersRow.tsx.
+   ════════════════════════════════════════════════════════════════════ */
+.rm .fbar { padding: 4px 0 10px; }
+.rm .flabel {
+  display: block; margin: 0 0 11px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.rm .focus-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;
+}
+
+.rm .folder-card {
+  appearance: none; cursor: pointer; font: inherit; text-align: left; width: 100%;
+  position: relative; overflow: hidden;
+  background: var(--panel); border: var(--card-bd); border-radius: var(--rad);
+  padding: 18px; box-shadow: var(--shadow-card);
+  transition: transform .16s, box-shadow .16s, border-color .16s, opacity .16s;
+}
+/* per-folder hue accent bar (trailhead/summit); fieldguide swaps to a top
+   border + tighter radius to match the editorial direction */
+.rm .folder-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: hsl(var(--h) 60% 52%); opacity: .9;
+}
+.rm[data-theme="fieldguide"] .folder-card::before { width: 0; }
+.rm[data-theme="fieldguide"] .folder-card {
+  border-top: 3px solid hsl(var(--h) 50% 45%); border-radius: 4px;
+}
+.rm .folder-card:hover {
+  transform: translateY(-2px); box-shadow: var(--shadow-pop);
+  border-color: hsl(var(--h) 55% 55% / .4);
+}
+
+/* role-derived states (no new logic): `.muted` = project not in the
+   effective role (FoldersRow's visibility set); `.on` = project filter active */
+.rm .folder-card.muted { opacity: .5; }
+.rm .folder-card.muted:hover { opacity: .75; }
+.rm .folder-card.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-card);
+}
+
+.rm .fc-head { display: flex; align-items: center; gap: 11px; }
+.rm .fc-icon {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+  display: grid; place-items: center;
+  color: hsl(var(--h) 52% 40%);
+  background: hsl(var(--h) 60% 50% / .14);
+  border: 1px solid hsl(var(--h) 50% 50% / .2);
+}
+.rm[data-theme="summit"] .fc-icon { color: hsl(var(--h) 75% 72%); background: hsl(var(--h) 60% 50% / .18); }
+.rm[data-theme="fieldguide"] .fc-icon { border-radius: 50%; }
+.rm .fc-icon svg { width: 16px; height: 16px; }
+.rm .fc-titles { min-width: 0; flex: 1; }
+.rm .fc-name {
+  display: block; font-family: var(--display); font-size: 16px; font-weight: 600;
+  color: var(--ink); letter-spacing: -0.01em; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rm[data-theme="fieldguide"] .fc-name { font-weight: 400; font-size: 21px; line-height: 1.05; }
+.rm .fc-sub {
+  display: block; margin-top: 2px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); letter-spacing: 0.02em;
+}
+
+@media (max-width: 768px) {
+  .rm .focus-grid { grid-template-columns: 1fr; gap: 14px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   STEP 4 · PHASE 1 — ROUTE STOPS (row → [rail | body])
+   ─────────────────────────────────────────────────────────────────────
+   Each task row is a "stop" on the route: a station node (the restyled
+   done checkbox) seated on a vertical spine that runs down the rail
+   column. Trailhead/default treatment ONLY — summit/fieldguide tints and
+   mobile land in Phase 3; Group.tsx (the per-section frame) is untouched.
+
+   Additive: `.rows` / `.row` / `.rail` were unstyled before this phase,
+   so these override nothing. The spine is a STATIC role-tinted line — no
+   progress fill, no next/waypoint state (that is V2-A). Tokens + --role-h
+   only; stations sit on `--panel` above the line (z-index) so it passes
+   behind them, reading as stops threaded on one route.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* HEAD — the route geometry (authored this phase) */
+
+/* the route container anchors the spine; relative is required for ::before */
+.rm .rows { position: relative; }
+/* spine: one soft vertical line down the rail centre (~26px), role-tinted.
+   Inset 28px top/bottom = half a row, so it runs first-station→last-station
+   centre rather than overshooting the column ends. */
+.rm .rows::before {
+  content: ''; position: absolute; left: 25px; top: 28px; bottom: 28px; width: 2px;
+  background: hsl(var(--role-h, 220) 45% 60% / .24); border-radius: 2px;
+  pointer-events: none;
+}
+
+/* a stop: flex [rail | body]. position:relative anchors the absolute .grip;
+   min-height gives the station room and sets the spine's vertical rhythm. */
+.rm .row {
+  position: relative; display: flex; align-items: stretch;
+  min-height: 56px;
+}
+
+/* the spine column: 52px wide centres the 22px station on the line at 26px,
+   and leaves the absolute grip (left 2px, ends 18px; centre 10px) clear of
+   the station (15–37px) so neither occludes the other's hit area. */
+.rm .rail {
+  position: relative; flex-shrink: 0; width: 52px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* TAIL — station, grip, body, tags, row actions (reviewed/approved) */
+
+  .rm .row .grip {
+    position: absolute; left: 2px; top: 50%; transform: translateY(-50%);
+    display: grid; place-items: center; width: 16px; height: 30px;
+    color: var(--ink-4); font-size: 11px; line-height: 1; letter-spacing: -1px;
+    opacity: 0; transition: opacity .14s, color .14s;
+  }
+  .rm .row:hover .grip { opacity: .65; }
+  .rm .row .grip:hover { opacity: 1; color: var(--ink-3); }
+  .rm .row .check.station {
+    appearance: none; padding: 0; margin: 0;
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid var(--ink-4); background: var(--panel);
+    position: relative; z-index: 1;
+    transition: border-color .14s, background .14s;
+  }
+  .rm .row .check.station:hover { border-color: var(--accent); }
+  .rm .row .check.station.done { border-color: var(--accent); background: var(--accent); }
+  .rm .row .check.station.done::after {
+    content: '✓'; position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 12px; font-weight: 700; line-height: 1; color: var(--on-accent);
+  }
+  .rm .row .body {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+    padding: 8px 8px 8px 0;
+  }
+  .rm .row .title-c {
+    flex: 1; min-width: 0;
+    font-family: var(--display); font-size: 13.5px; color: var(--ink); letter-spacing: -0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .rm .row.done .title-c {
+    color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--ink-4);
+  }
+  .rm .row .tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .rm .row .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.02em;
+    padding: 2px 7px; border-radius: 5px; white-space: nowrap;
+  }
+  .rm .row .tag.proj {
+    color: hsl(var(--h) 45% 38%); background: hsl(var(--h) 60% 50% / .12);
+    border: 1px solid hsl(var(--h) 50% 50% / .22);
+  }
+  .rm .row .tag.proj .pdot { width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--h) 60% 50%); }
+  .rm .row .tag.ctx { color: var(--ink-3); background: var(--panel-2); border: 1px solid var(--rule); }
+  .rm .row .tag.ctx .at { color: var(--ink-4); }
+  .rm .row .rowedit, .rm .row .rowdel {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 6px;
+    display: grid; place-items: center; font-size: 13px; line-height: 1; color: var(--ink-3);
+    opacity: 0; transition: opacity .14s, background .14s, color .14s;
+  }
+  .rm .row:hover .rowedit, .rm .row:hover .rowdel { opacity: 1; }
+  .rm .row .rowedit:hover { color: var(--ink); background: var(--hover); }
+  .rm .row .rowdel:hover { color: #d23; background: hsl(0 70% 50% / .1); }
+
+/* ════════════════════════════════════════════════════════════════════
+   STEP 4 · PHASE 2 — ROUTE SEGMENTS (group → section frame)
+   ─────────────────────────────────────────────────────────────────────
+   Each top-level group is a "segment" of the route: a header band over
+   its stops. Reskin only — Group.tsx structure/drag/toggle/add/delete are
+   unchanged. Trailhead/default tints only; summit/fieldguide + mobile in
+   Phase 3. .addrow is intentionally left unstyled (deferred to Phase 3).
+
+   Drag-safety: .ghead stays in static flex flow — no sticky/z-index/
+   overlay/pointer-events — so it cannot intercept a drag begun on a
+   child .grip. (Drag verified preserved at the P2 gate.)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* segment frame — depth-0 groups breathe; nested groups indent (inset) */
+.rm .group.depth-0 { margin-top: 24px; }
+.rm .group.depth-0:first-child { margin-top: 0; }
+.rm .group .group { margin-left: 14px; }
+
+/* HEAD — clickable band, static flow */
+.rm .ghead {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 4px; cursor: pointer; user-select: none;
+}
+.rm .ghead h2 {
+  margin: 0; font-family: var(--display); font-size: 14px;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+/* chevron — down when open, rotates right when collapsed */
+.rm .ghead .twist { color: var(--ink-4); font-size: 11px; line-height: 1; transition: transform .14s; }
+.rm .ghead.col .twist { transform: rotate(-90deg); }
+
+/* meta — done/total + (depth-0 only) slim indicator */
+.rm .ghead .meta {
+  margin-left: auto; display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); letter-spacing: 0.02em;
+}
+/* .bar — modest per-segment indicator (56x4), NOT a route fill. Reads the
+   inline --pct that Group.tsx sets from the existing done/total. */
+.rm .ghead .bar {
+  width: 56px; height: 4px; border-radius: 2px;
+  background: var(--rule-strong); position: relative; overflow: hidden;
+}
+.rm .ghead .bar::after {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: var(--pct, 0%); background: hsl(var(--role-h, 220) 45% 55%); border-radius: 2px;
+}
+
+/* gdel — hover-revealed, mirrors row actions */
+.rm .ghead .gdel {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  width: 24px; height: 24px; border-radius: 6px;
+  display: grid; place-items: center; font-size: 15px; line-height: 1; color: var(--ink-4);
+  opacity: 0; transition: opacity .14s, background .14s, color .14s;
+}
+.rm .ghead:hover .gdel { opacity: 1; }
+.rm .ghead .gdel:hover { color: #d23; background: hsl(0 70% 50% / .1); }
+
+/* nested-spine de-dup: a .rows holding sub-groups draws no spine of its own
+   (each sub-group draws one); leaf .rows (tasks only) keep theirs. */
+.rm .rows:has(> .group)::before { content: none; }
+
+/* ════════════════════════════════════════════════════════════════════
+   STEP 5 · P1 — DAILY LOG (author from scratch; TodaysLog.tsx untouched)
+   ─────────────────────────────────────────────────────────────────────
+   Today's log reads as discrete "stops passed today" in the route
+   language: tick = a quiet accent stop-dot column-aligned to the route's
+   station centre (26px), title in --display, where/dur as --mono chips,
+   logdel mirrors .rowdel. No continuous spine — .logrow is flat, nothing
+   to hang one on without touching JSX. .where/.dur emit '' → :empty hides.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* shell + header */
+.rm .log { margin-top: 28px; }
+.rm .log h3 {
+  display: flex; align-items: baseline; gap: 9px; margin: 0 0 12px;
+  font-family: var(--display); font-size: 15px; font-weight: 600;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+.rm .log h3 .date {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 400;
+  letter-spacing: 0.04em; color: var(--ink-3);
+}
+.rm .log .logempty { padding: 16px 4px; font-size: 12.5px; color: var(--ink-3); }
+
+/* ─── whole-body empty / status states (loading, load-fail, muted roles,
+       no filter matches, empty scope) — shared .empty contract ─── */
+.rm .empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 6px; padding: 64px 24px; min-height: 40vh; color: var(--ink-3);
+}
+.rm .empty h2 { margin: 0; font-size: 16px; font-weight: 600; color: var(--ink-2); }
+.rm .empty p  { margin: 0; font-size: 12.5px; max-width: 42ch; line-height: 1.5; }
+
+/* a logged stop: flat flex row, tick → title → where → dur → del */
+.rm .logrow {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 40px; padding: 4px 8px 4px 0;
+}
+.rm .logrow .tick {
+  flex-shrink: 0; width: 52px; text-align: center;
+  font-size: 11px; line-height: 1; color: var(--accent);
+}
+.rm .logrow .t {
+  flex: 1; min-width: 0;
+  font-family: var(--display); font-size: 13.5px; color: var(--ink);
+  letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rm .logrow .where, .rm .logrow .dur {
+  flex-shrink: 0; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.02em; padding: 2px 7px; border-radius: 5px; white-space: nowrap;
+}
+.rm .logrow .where { color: var(--ink-3); background: var(--panel-2); border: 1px solid var(--rule); }
+.rm .logrow .dur { color: var(--ink-4); font-feature-settings: "tnum"; }
+.rm .logrow .where:empty, .rm .logrow .dur:empty { display: none; }
+.rm .logrow .logdel {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 6px;
+  display: grid; place-items: center; font-size: 15px; line-height: 1;
+  color: var(--ink-3); opacity: 0; transition: opacity .14s, background .14s, color .14s;
+}
+.rm .logrow:hover .logdel { opacity: 1; }
+.rm .logrow .logdel:hover { color: #d23; background: hsl(0 70% 50% / .1); }
+
+/* add affordance — collapsed */
+.rm .logaddbtn {
+  appearance: none; cursor: pointer; font: inherit; font-size: 12px;
+  border: 1px dashed var(--rule-strong); background: transparent; color: var(--ink-3);
+  padding: 7px 12px; border-radius: 8px; margin: 4px 0 0;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.rm .logaddbtn:hover { border-color: var(--ink-3); color: var(--ink); background: var(--hover); }
+
+/* draft — inline form panel */
+.rm .logdraft {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 11px; margin: 4px 0 0;
+  background: var(--panel-2); border: 1px solid var(--rule); border-radius: var(--rad-sm);
+}
+.rm .logdraft .logtask, .rm .logdraft .logctx,
+.rm .logdraft .logdur, .rm .logdraft .lognotes {
+  appearance: none; font: inherit; font-size: 12px;
+  border: 1px solid var(--rule-strong); background: var(--panel); color: var(--ink);
+  padding: 6px 9px; border-radius: 7px; min-height: 32px;
+}
+.rm .logdraft .logtask { flex: 1 1 140px; min-width: 0; }
+.rm .logdraft .logctx { flex: 0 1 130px; min-width: 0; }
+.rm .logdraft .logdur { width: 76px; flex-shrink: 0; font-family: var(--mono); }
+.rm .logdraft .lognotes { flex: 1 1 160px; min-width: 0; }
+.rm .logdraft .logtask:focus, .rm .logdraft .logctx:focus,
+.rm .logdraft .logdur:focus, .rm .logdraft .lognotes:focus { outline: none; border-color: var(--accent); }
+.rm .logdraft .logcommit {
+  appearance: none; cursor: pointer; font: inherit; font-size: 12px;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent);
+  padding: 6px 14px; border-radius: 8px; min-height: 32px;
+}
+.rm .logdraft .logcommit:hover { filter: brightness(1.05); }
+.rm .logdraft .logcancel {
+  appearance: none; cursor: pointer; font: inherit; font-size: 11.5px;
+  border: 0; background: transparent; color: var(--ink-3); padding: 6px 8px; border-radius: 6px;
+}
+.rm .logdraft .logcancel:hover { color: var(--ink); background: var(--hover); }
+
+/* ════════════════════════════════════════════════════════════════════
+   STEP 4 · PHASE 3 — route mobile (touch affordances)
+   ─────────────────────────────────────────────────────────────────────
+   .grip / .rowedit / .rowdel are hover-revealed (opacity:0) and can't be
+   reached without a pointer; restore them at the foundation breakpoint.
+   .gdel (IRREVERSIBLE group-delete) intentionally stays hidden on touch.
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .rm .row .grip { opacity: .5; }
+  .rm .row .rowedit, .rm .row .rowdel { opacity: 1; }
+}
