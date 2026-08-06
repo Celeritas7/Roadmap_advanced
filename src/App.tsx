@@ -1,3 +1,6 @@
+// V2-B — FULL REPLACEMENT for src/App.tsx
+// Delta vs current: rm-pad branches on store `view` — Home (HomeView) vs
+// Plan (FoldersRow + Tree). TodaysLog moved into HomeView.
 import { useEffect } from 'react'
 import { useStore } from './store/useStore.ts'
 import { useNow } from './hooks/useNow.ts'
@@ -7,7 +10,7 @@ import { RolesTier } from './features/roles-tier/RolesTier.tsx'
 import { Subbar } from './features/subbar/Subbar.tsx'
 import { FoldersRow } from './features/folders/FoldersRow.tsx'
 import { Tree } from './features/tree/Tree.tsx'
-import { TodaysLog } from './features/log/TodaysLog.tsx'
+import { HomeView } from './features/home/HomeView.tsx'
 import { DebugTimeSlider } from './features/debug/DebugTimeSlider.tsx'
 
 export default function App() {
@@ -17,6 +20,7 @@ export default function App() {
   const hasData = useStore((s) => s.tree.length > 0)
   const clearError = useStore((s) => s.clearError)
   const theme = useStore((s) => s.theme)
+  const view = useStore((s) => s.view)
 
   useEffect(() => {
     void init()
@@ -78,9 +82,14 @@ export default function App() {
                   </button>
                 </div>
               )}
-              <FoldersRow />
-              <Tree />
-              <TodaysLog />
+              {view === 'home' ? (
+                <HomeView />
+              ) : (
+                <>
+                  <FoldersRow />
+                  <Tree />
+                </>
+              )}
             </>
           )}
         </main>

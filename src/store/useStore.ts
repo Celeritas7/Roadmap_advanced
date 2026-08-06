@@ -1,3 +1,5 @@
+// V2-B — FULL REPLACEMENT for src/store/useStore.ts
+// Delta vs current: adds client-only `view` ('home'|'plan') + setView.
 import { create } from 'zustand'
 import type {
   FilterKind,
@@ -21,6 +23,8 @@ import * as sync from './sync.ts'
 
 export type ThemeName = 'trailhead' | 'summit' | 'fieldguide'
 
+export type ViewName = 'home' | 'plan'
+
 export type StoreState = {
   // Server-mirrored
   tree: TaskRow[]
@@ -34,6 +38,8 @@ export type StoreState = {
   // schedule picks the default (see effectiveRoleId). Deliberately NOT in
   // `settings`/persisted — on reload the schedule re-derives it.
   selectedRole: string | null
+  // V2-B: which surface is showing. Ephemeral — reload re-lands on Home.
+  view: ViewName
 
   // Device-local UI preference — persisted to localStorage, never synced.
   theme: ThemeName
@@ -60,6 +66,7 @@ export type StoreState = {
   setHour: (hour: number) => void
   selectRole: (roleId: string) => void
   setTheme: (t: ThemeName) => void
+  setView: (view: ViewName) => void
 }
 
 function defaultNow(): NowState {
@@ -106,6 +113,7 @@ export const useStore = create<StoreState>((set, get) => ({
   filters: { projects: new Set(), contexts: new Set() },
   now: defaultNow(),
   selectedRole: null,
+  view: 'home',
   theme: readStoredTheme(),
   initialized: false,
   loading: true,
@@ -194,6 +202,8 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ theme: t })
     try { localStorage.setItem('rm-theme', t) } catch { /* ignore persist failure */ }
   },
+
+  setView: (view) => set({ view }),
 
   toggleGroup: async (id) => {
     const target = get().tree.find((t) => t.id === id)

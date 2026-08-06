@@ -1,6 +1,9 @@
+// V2-B — FULL REPLACEMENT for src/features/header/Header.tsx
+// Delta vs current: Home|Plan tabs between the ⌘K hint and the mood line.
 import { format, getISOWeek } from 'date-fns'
 import { ROLE_BY_ID } from '../../seed.ts'
 import { useEffectiveRoleId } from '../../hooks/useEffectiveRoleId.ts'
+import { useStore } from '../../store/useStore.ts'
 import { ThemeSwitcher } from './ThemeSwitcher.tsx'
 
 export function Header() {
@@ -8,6 +11,8 @@ export function Header() {
   // it can't drift from the data-role wash / active chip.
   const effId = useEffectiveRoleId()
   const mood = ROLE_BY_ID[effId]?.mood ?? ''
+  const view = useStore((s) => s.view)
+  const setView = useStore((s) => s.setView)
 
   const today = new Date()
   const pill = format(today, 'EEE · MMM d')
@@ -34,6 +39,21 @@ export function Header() {
           Roadmap
         </h1>
         <span className="rm-kbd">⌘K to jump</span>
+        {/* V2-B nav: Home | Plan (Contexts parked) */}
+        <div className="rm-tabs" role="tablist" aria-label="View">
+          {(['home', 'plan'] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={view === id}
+              className={'rm-tab' + (view === id ? ' active' : '')}
+              onClick={() => setView(id)}
+            >
+              {id === 'home' ? 'Home' : 'Plan'}
+            </button>
+          ))}
+        </div>
         <span className="rm-mood">{mood}</span>
       </div>
       <div className="rm-meta">

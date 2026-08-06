@@ -1,0 +1,16 @@
+/* ────────────────────────────────────────────────────────────────────
+   INSERT into src/index.css after line 481 (the closing `}` of
+   `.rm .fc-sub`), BEFORE the `@media (max-width: 768px)` block at ~L483.
+   Net-new rules only — zero edits to existing Step-3 rules.
+   ──────────────────────────────────────────────────────────────────── */
+
+/* V2-A · PHASE B — next-stop panel + done/total split (net-new; .fc-sub
+   already renders the split — no existing rule edited) */
+.rm .fc-next {
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px dashed var(--rule);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.02em;
+  color: var(--ink-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rm .fc-next .fc-next-title { color: var(--ink); }
