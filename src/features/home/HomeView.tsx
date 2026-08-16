@@ -1,13 +1,14 @@
-// V2-B — FULL REPLACEMENT for src/features/home/HomeView.tsx (v2: stable
-// rotation). Road = round-robin across the role's projects, built over open
-// stops PLUS stops cleared today. A cleared stop keeps its slot, so checking
-// a task never reshuffles the order — the pulse advances to the next stop in
-// the rotation and the barrier slides down by one.
+// V2-E — FULL REPLACEMENT for src/features/home/HomeView.tsx
+// Delta vs V2-B(v2): the daily road now MERGES ALL THREE TIERS — Attackers,
+// Mid-players and Defenders all feed today's road (role gate opened to every
+// role). Lanes are ordered by tier (PROJECTS order), so the merge is sorted
+// and stable. Keeps the v2 stable rotation: cleared-today stops hold their
+// slot, so checking never reshuffles — the pulse just advances.
 
 import type { CSSProperties } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import { useEffectiveRoleId } from '../../hooks/useEffectiveRoleId.ts'
-import { ROLE_BY_ID, PROJECT_BY_ID } from '../../seed.ts'
+import { ROLES, ROLE_BY_ID, PROJECTS, PROJECT_BY_ID } from '../../seed.ts'
 import { getDaypart, formatHour12 } from '../../lib/time.ts'
 import { buildTree, type TreeNode } from '../../lib/tree.ts'
 import type { TaskRow } from '../../types.ts'
@@ -15,6 +16,8 @@ import { TodaysLog } from '../log/TodaysLog.tsx'
 import { HomeStop } from './HomeStop.tsx'
 import { roadGeometry, workCap, barrierMessage, ROAD_XMID } from './road.ts'
 import { passingTaskIds } from '../../store/selectors.ts'
+
+const ALL_ROLES: Set<string> = new Set(ROLES.map((r) => r.id))
 
 function tasksInRenderOrder(tasks: TaskRow[]): TaskRow[] {
   const out: TaskRow[] = []
@@ -28,10 +31,8 @@ function tasksInRenderOrder(tasks: TaskRow[]): TaskRow[] {
   return out
 }
 
-const roleOf = (t: TaskRow): string | null => {
-  const p = t.tags.find((tag) => tag in PROJECT_BY_ID)
-  return p ? PROJECT_BY_ID[p].role : null
-}
+const projectOf = (t: TaskRow): string | null =>
+  t.tags.find((tag) => tag in PROJECT_BY_ID) ?? null
 
 const isToday = (iso: string): boolean => {
   const d = new Date(iso)
@@ -45,27 +46,31 @@ export function HomeView() {
   const pinned = useStore((s) => s.selectedRole !== null)
   const effId = useEffectiveRoleId()
   const filters = useStore((s) => s.filters)
-  // Same single source of `pass` Plan uses: role gate → project OR → context AND.
-  const { pass } = passingTaskIds(tree, new Set([effId]), filters)
+  // Role gate opened to ALL roles — Home is the merged daily road. Context
+  // filters still apply (same single source of pass Plan uses).
+  const { pass } = passingTaskIds(tree, ALL_ROLES, filters)
   const role = ROLE_BY_ID[effId]
   const dp = getDaypart(hour)
 
-  const tasks = tasksInRenderOrder(tree).filter((t) => roleOf(t) === effId && pass.has(t.id))
+  const tasks = tasksInRenderOrder(tree).filter(
+    (t) => projectOf(t) !== null && pass.has(t.id),
+  )
   const open = tasks.filter((t) => !t.done)
   const done = tasks.length - open.length
 
-  // Road pool: open stops + stops cleared today (cleared ones stay on the
-  // road, dimmed, holding their slot in the rotation).
+  // Road pool: open stops + stops cleared today (cleared ones ride along,
+  // dimmed, holding their rotation slot).
   const pool = tasks.filter((t) => !t.done || isToday(t.updated_at))
-  const lanes = new Map<string, TaskRow[]>()
+  // Lanes in PROJECTS order = tier order: Attackers folders first, then
+  // Mid-players, then Defenders — the merge is sorted, not arbitrary.
+  const lanes = new Map<string, TaskRow[]>(PROJECTS.map((p) => [p.id, []]))
   for (const t of pool) {
-    const p = t.tags.find((tag) => tag in PROJECT_BY_ID) ?? '_untagged'
-    if (!lanes.has(p)) lanes.set(p, [])
-    lanes.get(p)!.push(t)
+    const p = projectOf(t)
+    if (p) lanes.get(p)!.push(t)
   }
-  const laneList = [...lanes.values()]
-  // Round-robin: one stop per project per pass, until 6 OPEN stops are on
-  // the road (cleared ones ride along without consuming open slots).
+  const laneList = [...lanes.values()].filter((l) => l.length > 0)
+  // Round-robin: one stop per folder per pass, until 6 OPEN stops are on the
+  // road (cleared ones ride along without consuming open slots).
   const stops: TaskRow[] = []
   let openOnRoad = 0
   for (let i = 0; openOnRoad < 6; i++) {
@@ -90,9 +95,9 @@ export function HomeView() {
           <span className="hn-daypart">{dp.label} · {formatHour12(hour)}</span>
           <h2 className="hn-title">{role.mood}</h2>
           <p className="hn-rule">
-            {pinned ? 'Pinned to ' : `It's ${dp.label}, so Roadmap is focused on `}
-            <strong>{role.label}</strong> · {role.subtitle}. Showing your top{' '}
-            {openOnRoad} open {openOnRoad === 1 ? 'stop' : 'stops'}.
+            {pinned ? 'Pinned to ' : `It's ${dp.label} — leading with `}
+            <strong>{role.label}</strong>. All tiers merged into today's road ·
+            top {openOnRoad} open {openOnRoad === 1 ? 'stop' : 'stops'}.
           </p>
         </div>
         <div className="hn-r">
@@ -105,7 +110,7 @@ export function HomeView() {
         {openOnRoad === 0 ? (
           <div className="empty">
             <h2>Every stop cleared</h2>
-            <p>Nothing open for {role.label} right now. Switch tiers, or open Plan to add more.</p>
+            <p>Nothing open anywhere right now. Open Plan to add more.</p>
           </div>
         ) : (
           (() => {

@@ -1,17 +1,20 @@
-// V2-B — FULL REPLACEMENT for src/App.tsx
-// Delta vs current: rm-pad branches on store `view` — Home (HomeView) vs
-// Plan (FoldersRow + Tree). TodaysLog moved into HomeView.
+// V2-F — FULL REPLACEMENT for src/App.tsx
+// Delta vs v2e: Plan tab renders PlanFolders (folder tiles); tier tabs
+// (RolesTier) show ONLY on Plan — Home is the merged road, no tiers.
 import { useEffect } from 'react'
 import { useStore } from './store/useStore.ts'
 import { useNow } from './hooks/useNow.ts'
 import { useEffectiveRoleId } from './hooks/useEffectiveRoleId.ts'
+import { PROJECT_BY_ID } from './seed.ts'
 import { Header } from './features/header/Header.tsx'
 import { RolesTier } from './features/roles-tier/RolesTier.tsx'
 import { Subbar } from './features/subbar/Subbar.tsx'
-import { FoldersRow } from './features/folders/FoldersRow.tsx'
-import { Tree } from './features/tree/Tree.tsx'
+import { PlanFolders } from './features/plan/PlanFolders.tsx'
+import { PlanWindow } from './features/tree/PlanWindow.tsx'
 import { HomeView } from './features/home/HomeView.tsx'
 import { DebugTimeSlider } from './features/debug/DebugTimeSlider.tsx'
+
+const planParam = new URLSearchParams(window.location.search).get('plan')
 
 export default function App() {
   const init = useStore((s) => s.init)
@@ -28,28 +31,34 @@ export default function App() {
 
   useNow()
 
-  // Step 2: data-role now tracks the effective (single) focused role — the
-  // hybrid model's source of truth (manual selectRole > schedule default), via
-  // the shared hook. effectiveRoleId always returns one of
-  // attackers/midplayers/defenders, matching the [data-role] tokens in index.css
-  // (replaces the Step 1 hardcoded data-role="attackers").
   const role = useEffectiveRoleId()
-
-  // A load failure (no data yet) gets the full error screen. A failed mutation
-  // after data is loaded must NOT blank the tree — it surfaces as a dismissible
-  // banner while the optimistic rollback keeps the tree intact.
   const loadFailed = !!error && !hasData
 
+  if (planParam) {
+    const winRole = PROJECT_BY_ID[planParam]?.role ?? role
+    return (
+      <div className="rm" data-theme={theme} data-role={winRole}>
+        <div className="rm-scroll">
+          <main className="rm-pad">
+            {loading ? (
+              <div className="empty"><h2>Loading…</h2></div>
+            ) : loadFailed ? (
+              <div className="empty"><h2>Couldn't load tasks</h2><p>{error}</p></div>
+            ) : (
+              <PlanWindow projectId={planParam} />
+            )}
+          </main>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    // The redesign shell: `.rm` is the token + positioning context; `.rm-scroll`
-    // is the height-constrained inner scroll region. `.rm-header` is sticky
-    // INSIDE `.rm-scroll`; `.rm-pad` is the scrolling body. The portaled mobile
-    // filter sheet and DebugTimeSlider sit on `.rm` itself, outside the scroll.
     <div className="rm" data-theme={theme} data-role={role}>
       <div className="rm-scroll">
         <header className="rm-header">
           <Header />
-          <RolesTier />
+          {view !== 'home' && <RolesTier />}
           <Subbar />
         </header>
         <main className="rm-pad">
@@ -65,9 +74,6 @@ export default function App() {
           ) : (
             <>
               {error && (
-                // .err-banner markup contract (index.css): icon + msg + dismiss.
-                // Retry is deferred to Step 5. Copy reflects the optimistic
-                // rollback — the failed edit is reverted, not "kept locally".
                 <div className="err-banner" role="alert">
                   <span className="eb-icon" aria-hidden="true">⚠</span>
                   <span className="eb-msg">
@@ -82,14 +88,7 @@ export default function App() {
                   </button>
                 </div>
               )}
-              {view === 'home' ? (
-                <HomeView />
-              ) : (
-                <>
-                  <FoldersRow />
-                  <Tree />
-                </>
-              )}
+              {view === 'home' ? <HomeView /> : <PlanFolders />}
             </>
           )}
         </main>
