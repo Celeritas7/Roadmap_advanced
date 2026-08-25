@@ -2,7 +2,7 @@
 // One skill's roadmap as a journey road: START → numbered stations →
 // phase signposts → 🏁 FINISH. Checks call the store's toggleTask (same
 // optimistic write + rollback as everywhere else).
-import { useMemo, type CSSProperties } from 'react'
+import { useMemo } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import { buildTree, type TreeNode } from '../../lib/tree.ts'
 import type { TaskRow } from '../../types.ts'
@@ -94,6 +94,7 @@ export function JourneyView({ projectId }: { projectId: string }) {
             </div>
           )
         }
+        if (r.k !== 'stop') return null
         n++
         const t = r.s.t
         const here = i === hereIdx
