@@ -63,7 +63,7 @@ function MultiRoad({ seq, showLang, onToggle }: {
           )
         }
         n++
-        const t = r.t
+        const t = (r as Extract<SeqItem, { k: 'stop' }>).t
         const lang = LANG_BY_ID[taskLang(t) ?? '']
         const here = i === hereIdx
         const cls = 'jstop' + (t.done ? ' done' : '') + (here ? ' here' : '')
