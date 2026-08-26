@@ -132,11 +132,37 @@ export const INITIAL_TREE: SeedNode[] = [
   {
     kind: 'group', title: 'Languages', expanded: true,
     children: [
-      { kind: 'task', title: 'Chinese HSK-1, 5 words today',                   done: true,  tags: ['lang', 'train', 'audio-only', 'short-burst', 'daily-routine'] },
-      { kind: 'task', title: 'Japanese N1 listening practice',                 done: false, tags: ['lang', 'train', 'audio-only'] },
-      { kind: 'task', title: 'Chinese conversation Excel update',              done: false, tags: ['lang', 'home', 'keyboard'] },
+      {
+        kind: 'group', title: 'Japanese', expanded: true,
+        children: [
+          { kind: 'task', title: 'Japanese app study · 5 min',        done: false, tags: ['lang', 'ja', 'ph-quick', 'train', 'short-burst', 'daily-routine'] },
+          { kind: 'task', title: 'NHK Easy article · 1',              done: false, tags: ['lang', 'ja', 'ph-reading', 'train', 'short-burst'] },
+          { kind: 'task', title: 'Writing test · 5 min',              done: false, tags: ['lang', 'ja', 'ph-writing', 'home', 'keyboard', 'short-burst'] },
+          { kind: 'task', title: 'Japanese N1 listening practice',    done: false, tags: ['lang', 'ja', 'ph-listening', 'train', 'audio-only'] },
+          { kind: 'task', title: 'Shadowing · 10 min',                done: false, tags: ['lang', 'ja', 'ph-speaking', 'home', 'audio-only'] },
+        ],
+      },
+      {
+        kind: 'group', title: 'Chinese', expanded: true,
+        children: [
+          { kind: 'task', title: 'Chinese app study · 5 min',         done: false, tags: ['lang', 'zh', 'ph-quick', 'train', 'short-burst', 'daily-routine'] },
+          { kind: 'task', title: 'Chinese HSK-1, 5 words today',      done: true,  tags: ['lang', 'zh', 'ph-quick', 'train', 'audio-only', 'short-burst', 'daily-routine'] },
+          { kind: 'task', title: 'Graded reader · ch. 2',             done: false, tags: ['lang', 'zh', 'ph-reading', 'train', 'short-burst'] },
+          { kind: 'task', title: 'HSK-1 audio drill',                 done: false, tags: ['lang', 'zh', 'ph-listening', 'train', 'audio-only'] },
+          { kind: 'task', title: 'Chinese conversation Excel update', done: false, tags: ['lang', 'zh', 'ph-speaking', 'home', 'keyboard'] },
+        ],
+      },
+      {
+        kind: 'group', title: 'Burmese', expanded: true,
+        children: [
+          { kind: 'task', title: 'Burmese app study · 5 min',         done: false, tags: ['lang', 'my', 'ph-quick', 'train', 'short-burst', 'daily-routine'] },
+          { kind: 'task', title: 'Script practice · 1 row',           done: false, tags: ['lang', 'my', 'ph-writing', 'home', 'short-burst'] },
+        ],
+      },
     ],
   },
+
+
   {
     kind: 'group', title: 'Visa renewal · 1 item', expanded: false,
     children: [

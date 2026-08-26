@@ -6,3 +6,4 @@ dist
 .DS_Store
 src/features/folders/Temp/
 v2b-home/
+Temp/

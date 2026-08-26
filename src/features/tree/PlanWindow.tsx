@@ -1,10 +1,12 @@
-// V2-F — FULL REPLACEMENT for src/features/tree/PlanWindow.tsx
-// Standalone plan window (?plan=<id>): back button + journey road view.
+// V2-H — FULL REPLACEMENT for src/features/tree/PlanWindow.tsx
+// One-line behavioural change vs V2-F: the Languages plan renders the
+// multi-road LanguageRoads body; every other plan keeps JourneyView.
 import { useEffect, type CSSProperties } from 'react'
 import { PROJECT_BY_ID, ROLE_BY_ID } from '../../seed.ts'
 import { useStore } from '../../store/useStore.ts'
 import { folderProgress } from '../../store/selectors.ts'
 import { JourneyView } from '../plan/JourneyView.tsx'
+import { LanguageRoads } from '../plan/LanguageRoads.tsx'
 
 function goBack() {
   window.location.href = window.location.pathname
@@ -37,7 +39,7 @@ export function PlanWindow({ projectId }: { projectId: string }) {
         <span className="plan-tier">{ROLE_BY_ID[p.role].label}</span>
         <span className="plan-count">{done}/{total} done</span>
       </header>
-      <JourneyView projectId={p.id} />
+      {p.id === 'lang' ? <LanguageRoads /> : <JourneyView projectId={p.id} />}
     </div>
   )
 }
