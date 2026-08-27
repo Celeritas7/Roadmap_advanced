@@ -15,6 +15,8 @@ export type TaskRow = {
   position: number
   expanded: boolean
   tags: string[]
+  streak: number
+  streak_day: string | null
   created_at: string
   updated_at: string
 }
@@ -29,7 +31,10 @@ export type TaskInsert = {
   tags?: string[]
 }
 
-export type TaskUpdate = Partial<Omit<TaskInsert, 'kind'>>
+export type TaskUpdate = Partial<Omit<TaskInsert, 'kind'>> & {
+    streak?: number
+    streak_day?: string | null
+  }
 
 // ─── DB rows: roadmap_daily_logs ──────────────────────────────────────
 
@@ -49,6 +54,26 @@ export type LogInsert = {
   context?: string | null
   duration_minutes?: number | null
   notes?: string | null
+}
+
+export type ResourceKind = 'web' | 'app'
+
+export type ResourceRow = {
+  id: string
+  task_id: string
+  label: string
+  url: string
+  kind: ResourceKind
+  position: number
+  created_at: string
+}
+
+export type ResourceInsert = {
+  task_id: string
+  label: string
+  url: string
+  kind?: ResourceKind
+  position?: number
 }
 
 // ─── DB rows: roadmap_user_settings ───────────────────────────────────

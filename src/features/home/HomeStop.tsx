@@ -10,6 +10,8 @@ import type { CSSProperties } from 'react'
 import { PROJECT_BY_ID } from '../../seed.ts'
 import { useStore } from '../../store/useStore.ts'
 import type { TaskRow } from '../../types.ts'
+import { LaunchPopover } from '../plan/LaunchPopover.tsx'
+import { isCooled, liveStreak, untilResetLabel } from '../../lib/dailyReset.ts'
 
 type Props = {
   task: TaskRow
@@ -38,6 +40,12 @@ export function HomeStop({ task, dx, beyond, here }: Props) {
       </div>
       <div className="body" style={shift}>
         <span className="title-c">{task.title}</span>
+        {liveStreak(task) > 0 && <span className="streak">🔥 {liveStreak(task)}</span>}
+        <LaunchPopover
+          taskId={task.id}
+          taskTitle={task.title}
+          cooledLabel={isCooled(task) ? `Done for today — re-enables at 4:00 AM (${untilResetLabel()})` : null}
+        />
         {proj && (
           <span className="tags">
             <span className="tag" style={{ '--h': proj.hue } as CSSProperties}>

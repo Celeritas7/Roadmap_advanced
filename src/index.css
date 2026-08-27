@@ -1021,6 +1021,7 @@ body {
 .jsign{position:absolute;transform:translate(-50%,-50%);font-family:var(--mono);font-size:10px;letter-spacing:.18em;background:var(--ink);color:var(--canvas);padding:5px 13px;border-radius:6px;z-index:2;white-space:nowrap}
 .jphase{position:absolute;transform:translate(0,-50%);display:flex;align-items:center;gap:7px;font-family:var(--display);font-size:13px;font-weight:600;background:hsl(var(--h) 62% 48%);color:#fff;padding:6px 15px;border-radius:999px;box-shadow:var(--shadow-card);z-index:2;white-space:nowrap}
 .jstop{position:absolute;left:0;width:100%;transform:translateY(-50%);display:flex;align-items:center}
+.jstop:has(.lr-pop){z-index:40}
 .jck{position:absolute;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:var(--panel);border:3px solid hsl(var(--h) 62% 48%);font:600 13px var(--mono);color:hsl(var(--h) 50% 38%);cursor:pointer;z-index:3;box-shadow:0 1px 4px rgba(16,18,29,.18)}
 .jstop.done .jck{background:hsl(var(--h) 62% 48%);color:#fff}
 .jstop.done .jtitle{color:var(--ink-3);text-decoration:line-through}
@@ -1058,3 +1059,82 @@ body {
 .lr-lchip{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;font:600 10px var(--mono);color:var(--ink-2);background:var(--panel-2);border-radius:6px;padding:3px 8px;white-space:nowrap}
 .lr-lchip .f{font-size:12px}
 .lr-empty{padding:36px 16px;text-align:center;color:var(--ink-3);font-size:12.5px}
+
+/* V2-I — APPEND to src/index.css (after the V2-H lr-* block) */
+
+/* launch affordance on a road stop */
+.lr-launchwrap{position:relative;display:inline-flex;flex:none}
+.lr-launch{display:inline-flex;align-items:center;gap:3px;min-width:28px;height:28px;padding:0 7px;border:1px solid var(--line,rgba(0,0,0,.15));border-radius:999px;background:var(--card,#fff);color:var(--ink,#222);font-size:13px;line-height:1;cursor:pointer;opacity:.45}
+.lr-launch.has{opacity:1}
+.lr-launch:hover{border-color:var(--accent,#4a7);color:var(--accent,#4a7)}
+.lr-launch .n{font-size:10px;font-weight:700;opacity:.7}
+
+/* resource popover */
+.lr-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:30;width:280px;padding:8px;border:1px solid var(--line,rgba(0,0,0,.15));border-radius:12px;background:var(--card,#fff);box-shadow:0 12px 32px rgba(16,18,29,.22);display:flex;flex-direction:column;gap:4px}
+.lr-popitem{display:flex;align-items:center;gap:2px}
+.lr-poplaunch{flex:1;display:flex;align-items:center;gap:8px;padding:8px;min-height:44px;border:0;border-radius:8px;background:none;font:inherit;font-size:13px;color:var(--ink,#222);cursor:pointer;text-align:left}
+.lr-poplaunch:hover{background:var(--wash,rgba(0,0,0,.05))}
+.lr-poplaunch .ic{flex:none}
+.lr-poplaunch .lb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lr-popdel{flex:none;width:28px;height:28px;border:0;border-radius:6px;background:none;color:var(--muted,#888);font-size:15px;cursor:pointer}
+.lr-popdel:hover{background:var(--wash,rgba(0,0,0,.05));color:#c33}
+.lr-popempty{margin:4px 8px;font-size:12px;color:var(--muted,#888)}
+.lr-popaddrow{padding:8px;border:0;border-radius:8px;background:none;font:inherit;font-size:12px;color:var(--muted,#888);cursor:pointer;text-align:left}
+.lr-popaddrow:hover{background:var(--wash,rgba(0,0,0,.05));color:var(--ink,#222)}
+
+.lr-popform{display:flex;flex-direction:column;gap:6px;padding:2px}
+.lr-popform input{padding:9px 10px;border:1px solid var(--line,rgba(0,0,0,.15));border-radius:8px;background:var(--bg,#fff);font:inherit;font-size:13px;color:var(--ink,#222)}
+.lr-popform input:focus{outline:none;border-color:var(--accent,#4a7)}
+.lr-popadd{align-self:stretch;padding:9px 12px;border:0;border-radius:8px;background:var(--accent,#4a7);color:#fff;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+
+/* deep-link fallback toast */
+.lr-toast{position:fixed;left:50%;bottom:24px;z-index:99;transform:translate(-50%,8px);padding:10px 16px;border-radius:10px;background:rgba(20,22,26,.92);color:#fff;font-size:13px;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+.lr-toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ═══ V2-J — home hub: streaks, launch cooldown, plan cards ═══ */
+.rm .streak{font-family:var(--mono);font-size:11px;color:#e35d2b;background:rgba(227,93,43,.1);border-radius:999px;padding:2px 7px;white-space:nowrap;flex:none}
+.rm .lr-launch.cool{opacity:.35;cursor:default}
+.rm .lr-launch.cool:hover{border-color:var(--rule);color:var(--ink)}
+.rm .home-rows .row .body .lr-launchwrap{margin-left:auto}
+.rm .plan-cards{margin-top:28px}
+.rm .pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-top:10px}
+.rm .pcard{background:var(--panel);border:var(--card-bd);border-radius:var(--rad);box-shadow:var(--shadow-card);padding:14px 16px 12px;display:flex;flex-direction:column;gap:8px}
+.rm .pc-head{display:flex;align-items:center;gap:8px}
+.rm .pc-chip{font-family:var(--mono);font-size:11px;background:var(--panel-2);border-radius:6px;padding:2px 6px;flex:none}
+.rm .pc-name{font-weight:600;font-size:15px}
+.rm .pc-cnt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.rm .pc-bar{height:4px;border-radius:2px;background:var(--panel-2);overflow:hidden}
+.rm .pc-bar i{display:block;height:100%;background:hsl(var(--h) 55% 48%);border-radius:2px}
+.rm .pc-mini{position:relative;margin-top:2px}
+.rm .pc-mini svg{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.rm .pcr-asphalt{fill:none;stroke:#393941;stroke-width:13;stroke-linecap:round;stroke-linejoin:round}
+.rm .pcr-lane{fill:none;stroke:var(--lane);stroke-width:1.5;stroke-dasharray:5 7}
+.rm .pc-stop{position:absolute;left:0;width:100%;transform:translateY(-50%);display:flex;align-items:center;gap:8px}
+.rm .pc-check{position:absolute;top:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:var(--panel);border:2px solid hsl(var(--h) 55% 48%);font:600 10px var(--mono);color:var(--ink);cursor:pointer;z-index:2;padding:0}
+.rm .pc-check:hover{background:hsl(var(--h) 55% 48%);color:#fff}
+.rm .pc-stop .pc-title{margin-left:44px;font-size:12.5px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rm .pc-stop .lr-launchwrap{margin-left:auto;transform:scale(.85)}
+.rm .pc-all{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin:6px 0}
+.rm .pc-more{font-family:var(--mono);font-size:11px;color:var(--ink-3);text-decoration:none;margin-top:2px;align-self:flex-start}
+.rm .pc-more:hover{color:var(--accent-ink)}
+
+/* ═══ V2-K — home road views: chip switcher ═══ */
+.rm .road-views{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.rm .road-views .flabel{margin-right:4px}
+.rm .vchip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 13px;font-family:inherit;font-size:13px;font-weight:500;color:var(--ink);cursor:pointer}
+.rm .vchip:hover{border-color:var(--accent)}
+.rm .vchip .n{font-family:var(--mono);font-size:10.5px;color:var(--muted);background:var(--wash);border-radius:999px;padding:1px 7px}
+.rm .vchip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.rm .vchip.on .n{background:rgba(255,255,255,.22);color:#fff}
+.rm .rv-hint{margin:0 0 10px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.rm .rv-empty{margin:6px 0 2px;font-family:var(--mono);font-size:12px;color:var(--accent-deep)}
+
+/* ═══ V2-K.1 — home road fixes: width cap + popover stacking ═══
+   PASTE AT BOTTOM of src/index.css (after the V2-K block).
+   1) Cap the home road column so ↗/tags sit near the title on desktop.
+   2) Raise the row whose launch popover is open above later (transformed)
+      rows — transforms make stacking contexts, so without this the rows
+      below paint over the popover and swallow its clicks. */
+.rm .home-next{max-width:680px}
+.rm .home-rows .row .body:has(.lr-pop){z-index:40}
+.rm .home-rows .row .body:has(.lr-launchwrap [aria-expanded="true"]){z-index:40}

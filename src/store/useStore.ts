@@ -8,6 +8,7 @@ import type {
   LogRow,
   Location,
   NowState,
+  ResourceRow,
   RoleOverride,
   RoleOverrides,
   TaskInsert,
@@ -20,6 +21,9 @@ import { seedIfEmpty } from '../seed.ts'
 import { subtreeIds } from '../lib/tree.ts'
 import { activeRoleIds, isRoleActive, effectiveRoleId, folderProgress, nextAction } from './selectors.ts'
 import * as sync from './sync.ts'
+import * as resourceSync from './resourceSync.ts'
+import { isDaily, dayKey, prevDayKey } from '../lib/dailyReset.ts'
+import { readStoredRoadView, storeRoadView, type RoadViewId } from '../features/home/roadViews.ts'
 
 export type ThemeName = 'trailhead' | 'summit' | 'fieldguide'
 
@@ -30,6 +34,7 @@ export type StoreState = {
   tree: TaskRow[]
   log: LogRow[]
   settings: UserSettings | null
+  resources: ResourceRow[]
 
   // Client-only
   filters: FilterState
@@ -43,6 +48,8 @@ export type StoreState = {
 
   // Device-local UI preference — persisted to localStorage, never synced.
   theme: ThemeName
+  // V2-K: which road Home shows ('all'|'quick'|'daily'|'focus'). Persisted.
+  roadView: RoadViewId
 
   initialized: boolean
   loading: boolean
@@ -61,11 +68,14 @@ export type StoreState = {
   clearFilters: () => void
   addLog: (entry: LogInsert) => Promise<void>
   deleteLog: (id: string) => Promise<void>
+  addResource: (taskId: string, label: string, url: string) => Promise<void>
+  deleteResource: (id: string) => Promise<void>
   cycleRole: (roleId: string) => Promise<void>
   setLocation: (location: Location) => void
   setHour: (hour: number) => void
   selectRole: (roleId: string) => void
   setTheme: (t: ThemeName) => void
+  setRoadView: (v: RoadViewId) => void
   setView: (view: ViewName) => void
 }
 
@@ -110,11 +120,13 @@ export const useStore = create<StoreState>((set, get) => ({
   tree: [],
   log: [],
   settings: null,
+  resources: [],
   filters: { projects: new Set(), contexts: new Set() },
   now: defaultNow(),
   selectedRole: null,
   view: 'home',
   theme: readStoredTheme(),
+  roadView: readStoredRoadView(),
   initialized: false,
   loading: true,
   error: null,
@@ -124,12 +136,15 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ initialized: true })
     try {
       await seedIfEmpty(supabase)
-      const [tree, log, settings] = await Promise.all([
+      const [tree, log, settings, resources] = await Promise.all([
         sync.fetchTasks(),
         sync.fetchLogs(),
         sync.fetchSettings(),
+        resourceSync.fetchResources(),
       ])
-      set({ tree, log, settings, loading: false, error: null })
+      set({ tree, log, settings, resources, loading: false, error: null })
+      void runDailyReset(get, set)
+      window.setInterval(() => void runDailyReset(get, set), 60_000)
     } catch (e) {
       set({ initialized: false, loading: false, error: errorMessage(e) })
     }
@@ -140,9 +155,20 @@ export const useStore = create<StoreState>((set, get) => ({
     const target = prev.find((t) => t.id === id)
     if (!target) return
     const done = !target.done
-    set({ tree: prev.map((t) => (t.id === id ? { ...t, done } : t)) })
+    const patch: TaskUpdate = { done }
+    if (isDaily(target)) {
+      const today = dayKey()
+      if (done && target.streak_day !== today) {
+        patch.streak = target.streak_day === prevDayKey(today) ? target.streak + 1 : 1
+        patch.streak_day = today
+      } else if (!done && target.streak_day === today) {
+        patch.streak = Math.max(0, target.streak - 1)
+        patch.streak_day = patch.streak > 0 ? prevDayKey(today) : null
+      }
+    }
+    set({ tree: prev.map((t) => (t.id === id ? { ...t, ...patch } : t)) })
     try {
-      const row = await sync.updateTask(id, { done })
+      const row = await sync.updateTask(id, patch)
       set({ tree: get().tree.map((t) => (t.id === id ? row : t)) })
     } catch (e) {
       set({ tree: prev, error: errorMessage(e) })
@@ -204,6 +230,11 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   setView: (view) => set({ view }),
+
+  setRoadView: (v) => {
+    set({ roadView: v })
+    storeRoadView(v)
+  },
 
   toggleGroup: async (id) => {
     const target = get().tree.find((t) => t.id === id)
@@ -283,6 +314,30 @@ export const useStore = create<StoreState>((set, get) => ({
     }
   },
 
+  addResource: async (taskId, label, url) => {
+    const kind = /^https?:/i.test(url) ? 'web' as const : 'app' as const
+    const position = get().resources.filter((r) => r.task_id === taskId).length
+    try {
+      const row = await resourceSync.insertResource({ task_id: taskId, label, url, kind, position })
+      set({ resources: [...get().resources, row] })
+    } catch (e) {
+      set({ error: errorMessage(e) })
+      throw e
+    }
+  },
+
+  deleteResource: async (id) => {
+    const prev = get().resources
+    set({ resources: prev.filter((r) => r.id !== id), error: null })
+    try {
+      await resourceSync.deleteResource(id)
+    } catch (e) {
+      set({ resources: prev, error: errorMessage(e) })
+      throw e
+    }
+  },
+
+
   cycleRole: async (roleId) => {
     const prev = get().settings ?? emptySettings()
     const overrides: RoleOverrides = { ...prev.role_overrides }
@@ -332,4 +387,25 @@ if (import.meta.env.DEV) {
   }
   g.__roadmapStore = useStore
   g.__roadmapSelectors = { activeRoleIds, isRoleActive, effectiveRoleId, folderProgress, nextAction }
+}
+
+// V2-J: at/after 4 AM, uncheck @daily-routine tasks completed on a previous
+// logical day. Streaks were counted at check time — reset only clears the
+// checkmark. Idempotent; retried every minute while a tab is open.
+async function runDailyReset(
+  get: () => StoreState,
+  set: (p: Partial<StoreState>) => void,
+): Promise<void> {
+  const today = dayKey()
+  const stale = get().tree.filter(
+    (t) => isDaily(t) && t.done && dayKey(new Date(t.updated_at)) !== today,
+  )
+  if (!stale.length) return
+  const ids = new Set(stale.map((t) => t.id))
+  set({ tree: get().tree.map((t) => (ids.has(t.id) ? { ...t, done: false } : t)) })
+  try {
+    await Promise.all(stale.map((t) => sync.updateTask(t.id, { done: false })))
+  } catch {
+    /* optimistic state already unchecked; the next minute tick retries */
+  }
 }

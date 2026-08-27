@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import type { TaskRow } from '../../types.ts'
 import { LANGS, LANG_BY_ID, LANG_PHASES, taskLang, taskPhase, type Lang, type LangPhase } from './langMeta.ts'
+import { LaunchPopover } from './LaunchPopover.tsx'
 
 type SeqItem =
   | { k: 'start' | 'finish' }
@@ -85,6 +86,7 @@ function MultiRoad({ seq, showLang, onToggle }: {
               {showLang && lang && (
                 <span className="lr-lchip"><span className="f">{lang.flag}</span>{lang.name}</span>
               )}
+              <LaunchPopover taskId={t.id} taskTitle={t.title} />
             </div>
           </div>
         )
