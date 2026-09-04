@@ -158,21 +158,6 @@ export type NowState = {
   location: Location
 }
 
-export type Verification = 'app' | 'api' | 'manual'
-
-export type SessionRow = {
-  id: string
-  task_id: string | null
-  day_key: string
-  source: string
-  started_at: string | null
-  completed_at: string | null
-  duration_min: number | null
-  feedback: Record<string, unknown>
-  verification: Verification
-  created_at: string
-}
-
 // ─── DB rows: roadmap_study_sessions ──────────────────────────────────
 // One row per (task, logical day). Written from two sides: Roadmap opens it
 // with started_at on launch, a study app closes it with completed_at.
