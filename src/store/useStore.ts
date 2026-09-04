@@ -9,6 +9,7 @@ import type {
   Location,
   NowState,
   ResourceRow,
+  SessionRow,
   RoleOverride,
   RoleOverrides,
   TaskInsert,
@@ -22,6 +23,7 @@ import { subtreeIds } from '../lib/tree.ts'
 import { activeRoleIds, isRoleActive, effectiveRoleId, folderProgress, nextAction } from './selectors.ts'
 import * as sync from './sync.ts'
 import * as resourceSync from './resourceSync.ts'
+import * as sessionSync from './studySessions.ts'
 import { isDaily, dayKey, prevDayKey } from '../lib/dailyReset.ts'
 import { readStoredRoadView, storeRoadView, type RoadViewId } from '../features/home/roadViews.ts'
 
@@ -35,6 +37,9 @@ export type StoreState = {
   log: LogRow[]
   settings: UserSettings | null
   resources: ResourceRow[]
+  // V2-L: the study-session ledger. Server-mirrored, append-mostly. Read by
+  // src/lib/sessions.ts to derive streaks and per-stop trust.
+  sessions: SessionRow[]
 
   // Client-only
   filters: FilterState
@@ -69,6 +74,7 @@ export type StoreState = {
   addLog: (entry: LogInsert) => Promise<void>
   deleteLog: (id: string) => Promise<void>
   addResource: (taskId: string, label: string, url: string) => Promise<void>
+  refreshSessions: () => Promise<void>
   deleteResource: (id: string) => Promise<void>
   cycleRole: (roleId: string) => Promise<void>
   setLocation: (location: Location) => void
@@ -121,6 +127,7 @@ export const useStore = create<StoreState>((set, get) => ({
   log: [],
   settings: null,
   resources: [],
+  sessions: [],
   filters: { projects: new Set(), contexts: new Set() },
   now: defaultNow(),
   selectedRole: null,
@@ -145,6 +152,14 @@ export const useStore = create<StoreState>((set, get) => ({
       set({ tree, log, settings, resources, loading: false, error: null })
       void runDailyReset(get, set)
       window.setInterval(() => void runDailyReset(get, set), 60_000)
+      // The whole point of the ledger: you launch, study elsewhere, come
+      // back. Re-fetching on tab-return is what makes the study app's
+      // completion appear. Cheap (one indexed query) and needs no realtime
+      // replication enabled on the table.
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) void get().refreshSessions()
+      })
+      window.addEventListener('focus', () => void get().refreshSessions())
     } catch (e) {
       set({ initialized: false, loading: false, error: errorMessage(e) })
     }
@@ -170,9 +185,35 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const row = await sync.updateTask(id, patch)
       set({ tree: get().tree.map((t) => (t.id === id ? row : t)) })
+      // Ticking the box by hand is a real completion — it just isn't a
+      // PROVEN one, so it lands as verification='manual'. If a study app
+      // already reported this stop today, the RPC would overwrite that
+      // proof with 'manual', so skip the write when today's row is already
+      // verified.
+      if (isDaily(target)) {
+        const today = dayKey()
+        const existing = get().sessions.find(
+          (s) => s.task_id === id && s.day_key === today,
+        )
+        const alreadyProven = !!existing?.completed_at && existing.verification !== 'manual'
+        if (done && !alreadyProven) {
+          await sessionSync.completeSessionManually(id)
+        } else if (!done && !alreadyProven) {
+          await sessionSync.uncompleteSessionToday(id)
+        }
+        void get().refreshSessions()
+      }
     } catch (e) {
       set({ tree: prev, error: errorMessage(e) })
       throw e
+    }
+  },
+
+  refreshSessions: async () => {
+    try {
+      set({ sessions: await sessionSync.fetchSessions() })
+    } catch {
+      /* stale ledger is survivable — the next tab-return retries */
     }
   },
 

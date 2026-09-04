@@ -41,7 +41,7 @@ export function LaunchPopover({ taskId, taskTitle, cooledLabel = null }: { taskI
       showToast(cooledLabel)
       return
     }
-    if (mine.length === 1) launchResource(mine[0])
+    if (mine.length === 1) launchResource(mine[0], taskId)
     else setOpen((v) => !v)
   }
 
@@ -88,7 +88,7 @@ export function LaunchPopover({ taskId, taskTitle, cooledLabel = null }: { taskI
                 role="menuitem"
                 onClick={() => {
                   setOpen(false)
-                  launchResource(r)
+                  launchResource(r, taskId)
                 }}
               >
                 <span className="ic" aria-hidden="true">{r.kind === 'app' ? '📱' : '🌐'}</span>

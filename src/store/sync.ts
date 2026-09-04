@@ -9,7 +9,7 @@ import type {
 } from '../types.ts'
 
 const TASK_COLUMNS =
-  'id, parent_id, title, done, kind, position, expanded, tags, created_at, updated_at'
+  'id, parent_id, title, done, kind, position, expanded, tags, streak, streak_day, created_at, updated_at'
 const LOG_COLUMNS = 'id, task_id, log_date, context, duration_minutes, notes, created_at'
 const SETTINGS_COLUMNS = 'role_overrides, custom_rules, preferences, updated_at'
 

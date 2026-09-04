@@ -64,7 +64,7 @@ echo   Open:    http://localhost:5173/
 echo   (Close this window to stop.)
 echo.
 
-start "" "http://localhost:5173/"
+start "" cmd /c "timeout /t 4 >nul & start """" http://localhost:5173/"
 call "%NPM%" run dev
 
 echo.

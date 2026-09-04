@@ -1138,3 +1138,23 @@ body {
 .rm .home-next{max-width:680px}
 .rm .home-rows .row .body:has(.lr-pop){z-index:40}
 .rm .home-rows .row .body:has(.lr-launchwrap [aria-expanded="true"]){z-index:40}
+
+/* V2-L — APPEND to src/index.css (end of file) */
+/* Trust badges on a home stop. Deliberately quiet: the streak is the loud
+   element, the provenance is a footnote you can check. */
+
+.hs-trust{font-size:11px;letter-spacing:.02em;padding:1px 6px;border-radius:999px;white-space:nowrap;opacity:.85}
+.hs-trust.verified{color:oklch(.62 .13 155);background:oklch(.62 .13 155/.12)}
+.hs-trust.self{color:var(--ink-3,oklch(.58 .01 260));background:oklch(.58 .01 260/.1)}
+.hs-trust.open{color:oklch(.66 .12 75);background:oklch(.66 .12 75/.13)}
+
+/* A confirmed stop gets a faint ring on the station itself, so the road
+   reads as verified/unverified at a glance without reading badges. */
+.check.station.verified{box-shadow:0 0 0 2px oklch(.62 .13 155/.35)}
+
+/* Fully-proven streaks sit at full strength; mixed ones are dimmed a touch
+   so an unproven run can't masquerade as a confirmed one. */
+.streak{opacity:.72}
+.streak.allverified{opacity:1}
+
+@media (max-width:560px){.hs-trust{display:none}.check.station.verified{box-shadow:0 0 0 2px oklch(.62 .13 155/.45)}}
