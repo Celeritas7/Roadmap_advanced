@@ -30,6 +30,7 @@ const HANDSHAKE_HOSTS = [
   'consonants-writing-app-advanced',
   'localhost',
   '127.0.0.1',
+  'celeritas7.github.io',
 ]
 
 function wantsHandshake(url: URL): boolean {
