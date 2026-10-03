@@ -1158,3 +1158,137 @@ body {
 .streak.allverified{opacity:1}
 
 @media (max-width:560px){.hs-trust{display:none}.check.station.verified{box-shadow:0 0 0 2px oklch(.62 .13 155/.45)}}
+
+/* V2-M — APPEND to src/index.css
+   Logical-day label in the Home header. Existing tokens only, so all five
+   themes follow without further work. */
+
+/* Tabular figures so the date doesn't jitter as the clock ticks. */
+.rm .home-now .hn-day { font-feature-settings: "tnum"; opacity: .85; }
+
+/* The grace-window note: midnight–4 AM only. Amber, because it's a
+   clarification and not a warning — it must not read as an error state. */
+.rm .home-now .hn-grace {
+  display: inline-block; font-family: var(--mono); font-size: 11px;
+  padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+  color: oklch(.52 .13 70); background: oklch(.52 .13 70/.11);
+  border: 1px solid oklch(.52 .13 70/.22);
+}
+/* Summit is the only dark theme — lift the amber so it clears 4.5:1 on #14171e. */
+.rm[data-theme="summit"] .home-now .hn-grace { color: oklch(.82 .12 80); background: oklch(.82 .12 80/.13); border-color: oklch(.82 .12 80/.26); }
+
+/* V2-D — APPEND to src/index.css
+   The ↻ weekly button in the header. It reuses .rm-tab, so only the deferred
+   state needs new paint: a count that survives a sync is a stuck pair, and it
+   must never read like the idle state. No --rm-warn token existed, so it is
+   defined here per theme, following the amber already used by .hn-grace. */
+
+.rm[data-theme="trailhead"]  { --rm-warn: oklch(.52 .16 55); }
+.rm[data-theme="fieldguide"] { --rm-warn: oklch(.50 .16 55); }
+/* Summit is the only dark theme — lift it to clear 4.5:1 on #14171e. */
+.rm[data-theme="summit"]     { --rm-warn: oklch(.80 .14 70); }
+
+/* .rm-tab ships border: 0, so the tint needs a real border to show. Both the
+   deferred count and the signed-out state use it: neither is a clean pass. */
+.rm .rm-tab[data-wf-deferred],
+.rm .rm-tab[data-wf-signin] {
+  color: var(--rm-warn);
+  border: 1px solid var(--rm-warn);
+  background: color-mix(in oklch, var(--rm-warn) 10%, transparent);
+  font-weight: 700;
+}
+.rm .rm-tab[data-wf-deferred]:hover,
+.rm .rm-tab[data-wf-signin]:hover { color: var(--rm-warn); }
+.rm .rm-tab:disabled { opacity: .6; cursor: default; }
+
+/* An orphaned mirror (its Weekly Focus task was deleted or parked) keeps the
+   link row and gains a wf-orphan tag. Mute it, don't hide it. */
+.rm .row.wf-orphan .title-c { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--ink-4); }
+.rm .row.wf-orphan .tags { opacity: .55; }
+
+/* Sign-in popover for the ↻ control. Anchored to the header's right edge so it
+   can't run off-screen; mirrors the .lr-pop idiom. */
+.rm .wf-wrap { position: relative; display: inline-flex; }
+.rm .wf-pop {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 40;
+  width: 264px; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--panel); border: 1px solid var(--rule);
+  border-radius: var(--rad); box-shadow: var(--shadow-pop);
+}
+.rm .wf-popnote { margin: 0; font-size: 11px; line-height: 1.45; color: var(--ink-3); }
+.rm .wf-input {
+  width: 100%; font: inherit; font-family: var(--mono); font-size: 12px;
+  padding: 7px 9px; border-radius: var(--rad-sm);
+  border: 1px solid var(--rule-strong); background: var(--panel-2); color: var(--ink);
+}
+.rm .wf-input::placeholder { color: var(--ink-3); }
+.rm .wf-input:focus { outline: none; border-color: var(--accent); background: var(--panel); }
+.rm .wf-popactions { display: flex; gap: 6px; }
+.rm .wf-popactions .rm-tab { flex: 1; padding: 6px 8px; }
+.rm .wf-popok  { margin: 0; font-size: 11px; color: var(--ink-2); }
+.rm .wf-poperr { margin: 0; font-size: 11px; color: var(--rm-warn); }
+
+/* V2-N — APPEND to src/index.css (or import as its own file) */
+.lg-page{min-height:100dvh;display:grid;place-items:center;padding:32px 20px;background:var(--canvas)}
+.lg-card{width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;background:var(--panel);border:var(--card-bd);border-radius:var(--rad);box-shadow:var(--shadow-card);padding:30px 28px 24px}
+.lg-mark{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;background:var(--accent-soft);color:var(--accent-ink);font-size:19px;line-height:1}
+.lg-title{margin:0;font-family:var(--display);font-size:25px;line-height:1.15;letter-spacing:-.01em;color:var(--ink)}
+.lg-sub{margin:-6px 0 2px;font-family:var(--ui);font-size:13.5px;line-height:1.55;color:var(--ink-2);text-wrap:pretty}
+.lg-who{font-family:var(--mono);font-size:12.5px;color:var(--ink);word-break:break-all}
+.lg-field{display:flex;flex-direction:column;gap:6px}
+.lg-label{font-family:var(--ui);font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.lg-input{width:100%;box-sizing:border-box;padding:11px 13px;font-family:var(--ui);font-size:14.5px;color:var(--ink);background:var(--panel-2);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);outline:none;transition:border-color .12s,box-shadow .12s}
+.lg-input::placeholder{color:var(--ink-4)}
+.lg-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--panel)}
+.lg-btn{appearance:none;padding:11px 16px;font-family:var(--ui);font-size:14px;font-weight:600;color:var(--ink);background:var(--panel-2);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);cursor:pointer;transition:background .12s,border-color .12s}
+.lg-btn:hover:not(:disabled){background:var(--hover);border-color:var(--ink-4)}
+.lg-btn.primary{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}
+.lg-btn.primary:hover:not(:disabled){background:var(--accent-ink);border-color:var(--accent-ink)}
+.lg-btn:disabled{opacity:.45;cursor:not-allowed}
+.lg-google{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink);background:var(--panel);border-color:var(--rule-strong)}
+.lg-google:hover:not(:disabled){background:var(--hover);border-color:var(--ink-4)}
+.lg-gmark{flex:none}
+.lg-or{display:flex;align-items:center;gap:10px;font-family:var(--ui);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.lg-or::before,.lg-or::after{content:'';flex:1;height:1px;background:var(--rule-strong)}
+.lg-row{display:flex;gap:8px}
+.lg-row .lg-btn{flex:1}
+.lg-alt{align-self:flex-start;padding:2px 0;font-family:var(--ui);font-size:13px;color:var(--accent-ink);background:none;border:0;border-bottom:1px solid transparent;cursor:pointer}
+.lg-alt:hover{border-bottom-color:currentColor}
+.lg-note{margin:0;font-family:var(--ui);font-size:12px;line-height:1.5;color:var(--ink-3);text-wrap:pretty}
+.lg-ok{display:flex;flex-direction:column;gap:7px;padding:14px 15px;font-family:var(--ui);font-size:13.5px;line-height:1.5;color:var(--ink);background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--rad-sm);text-wrap:pretty}
+.lg-ok strong{font-weight:600}
+.lg-ok .lg-alt{margin-top:2px}
+.lg-err{margin:0;padding:10px 13px;font-family:var(--ui);font-size:13px;line-height:1.45;color:#a3222b;background:rgba(200,40,50,.08);border:1px solid rgba(200,40,50,.28);border-radius:var(--rad-sm)}
+/* summit is this app's dark theme (trailhead / summit / fieldguide) */
+[data-theme="summit"] .lg-err{color:#ff9ba3;background:rgba(255,90,100,.1);border-color:rgba(255,90,100,.3)}
+.lg-back{margin-top:4px;font-family:var(--ui);font-size:12.5px;color:var(--ink-3);text-decoration:none}
+.lg-back:hover{color:var(--ink-2)}
+
+/* V2-Q — APPEND to the END of src/index.css */
+.rm-tab-icon{padding-left:9px;padding-right:9px;letter-spacing:.06em;line-height:1}
+.ns{display:flex;flex-direction:column;gap:10px;margin:0 0 18px;padding:14px 16px;background:var(--panel);border:var(--card-bd);border-radius:var(--rad);font-family:var(--ui);font-size:13px;color:var(--ink)}
+.ns-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ns-k{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.ns-seg{display:flex;gap:4px}
+.ns-chip{appearance:none;padding:6px 10px;min-height:32px;font:inherit;font-size:12.5px;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);cursor:pointer}
+.ns-chip:hover{background:var(--hover)}
+.ns-chip.on{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}
+.ns-sel{padding:6px 8px;min-height:32px;font:inherit;font-size:12.5px;color:var(--ink);background:var(--panel-2);border:1px solid var(--rule-strong);border-radius:var(--rad-sm)}
+.ns-note{font-size:12px;color:var(--ink-3)}
+.ns-check{display:flex;flex-direction:column;gap:8px}
+.ns-q{font-family:var(--display);font-size:17px;line-height:1.2}
+.ns-grid{display:grid;gap:5px;max-width:320px;align-items:center}
+.ns-h{font-family:var(--mono);font-size:11px;color:var(--ink-3);text-align:center}
+.ns-hr{text-align:right;padding-right:6px}
+.ns-cell{appearance:none;height:34px;border:1px solid var(--rule-strong);border-radius:var(--rad-sm);background:var(--panel-2);cursor:pointer}
+.ns-cell[data-energy="high"]{background:var(--accent-soft)}
+.ns-cell:hover{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.ns-review{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--rule-strong)}
+.ns-rh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ns-rh span{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.ns-x{margin-left:auto;appearance:none;border:0;background:none;color:var(--ink-3);font-size:18px;line-height:1;cursor:pointer;min-width:32px;min-height:32px}
+.ns-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px}
+.ns-list li{display:flex;justify-content:space-between;gap:12px;font-size:12.5px}
+.ns-list time,.ns-list em{font-family:var(--mono);font-size:11.5px;font-style:normal;color:var(--ink-3);text-align:right}
+
+.rm-pad{padding-bottom:96px}

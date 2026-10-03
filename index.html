@@ -14,6 +14,14 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- V2-Q: hub scripts, classic, BEFORE the Vite module. Relative paths on
+         purpose (AKATSUKI.md: "relative to that app's index.html") — the
+         production build is served under /Roadmap_advanced/, where STEP1's
+         absolute /akatsuki/... would 404. Vite warns these can't be bundled;
+         that is expected — they ship as-is from public/akatsuki/. -->
+    <script src="akatsuki/akatsuki-client.js"></script>
+    <script src="akatsuki/rm-adapter.js"></script>
+    <script src="akatsuki/akatsuki-banner.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,0 +1,74 @@
+// V2-N — FULL REPLACEMENT for src/features/header/WeeklySync.tsx
+// Delta vs V2-D: the inline sign-in popover is gone. Sign-in is a page
+// (`?login=1`), so the button has one job again: label the sync state and
+// either run a sync or navigate. Three states, unchanged:
+//   · no session  → '↻ sign in'    → navigates to the login page
+//   · deferred N  → '↻ N deferred' → RM→WF writes that lost a race
+//   · otherwise   → '↻ weekly'
+// Auth still lives entirely in wfAuth.ts.
+import { useEffect, useState } from 'react'
+import { useStore } from '../../store/useStore.ts'
+import { onWfAuthChange, wfAuthState, type WfAuthState } from '../../lib/wfAuth.ts'
+
+function goToLogin() {
+  const u = new URL(window.location.href)
+  u.searchParams.set('login', '1')
+  window.location.assign(u.toString())
+}
+
+export function WeeklySync() {
+  const wfSyncing = useStore((s) => s.wfSyncing)
+  const wfLast = useStore((s) => s.wfLast)
+  const syncWeekly = useStore((s) => s.syncWeekly)
+  const [auth, setAuth] = useState<WfAuthState>('unknown')
+
+  // Subscribe so the label flips the moment a session appears — no reload.
+  // Deliberately does NOT sync on sign-in: the post-login landing already runs
+  // init() → syncWeekly(), and wfSyncing only guards within one tab, so firing
+  // here too races that pass. That race is what produced the duplicate
+  // "Languages" folder and the orphaned insert in pass 1.
+  useEffect(() => {
+    let live = true
+    void wfAuthState().then((s) => {
+      if (live) setAuth(s)
+    })
+    const off = onWfAuthChange((s) => setAuth(s))
+    return () => {
+      live = false
+      off()
+    }
+  }, [])
+
+  // 'unknown' is the first paint only. Trust the last sync's own verdict too:
+  // wfLink reports skipped:'no-session' rather than a silent all-zero pass.
+  const needSignIn = auth === 'signed-out' || wfLast?.skipped === 'no-session'
+  const deferred = wfLast?.deferred ?? 0
+
+  const label = wfSyncing
+    ? '↻ syncing…'
+    : needSignIn
+      ? '↻ sign in'
+      : deferred > 0
+        ? `↻ ${deferred} deferred`
+        : '↻ weekly'
+
+  const title = needSignIn
+    ? 'Weekly Focus needs a signed-in session — opens the sign-in page'
+    : deferred > 0
+      ? `${deferred} task(s) not yet written to Weekly Focus — retrying on next sync`
+      : 'Sync Weekly Focus'
+
+  return (
+    <button
+      type="button"
+      className="rm-tab"
+      disabled={wfSyncing}
+      data-wf-deferred={(!needSignIn && deferred > 0) || undefined}
+      data-wf-signin={needSignIn || undefined}
+      onClick={() => (needSignIn ? goToLogin() : void syncWeekly())}
+      title={title}
+    >
+      {label}
+    </button>
+  )
+}

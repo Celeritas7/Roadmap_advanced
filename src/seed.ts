@@ -71,12 +71,10 @@ export const PROJECT_BY_ID: Record<string, Project> = Object.fromEntries(
   PROJECTS.map((p) => [p.id, p]),
 )
 
+// V2-Q: `where` is filled from akatsuki_vocab at boot (applyVocabContexts).
+// What stays below is Roadmap-private — tags no other app uses.
 const RAW_CONTEXTS: Record<ContextFamily, { id: string; label: string }[]> = {
-  where: [
-    { id: 'home', label: '@home' },
-    { id: 'train', label: '@train' },
-    { id: 'office', label: '@office' },
-  ],
+  where: [],
   mode: [
     { id: 'audio-only', label: '@audio-only' },
     { id: 'keyboard', label: '@keyboard' },
@@ -98,6 +96,32 @@ export const CONTEXTS_BY_FAMILY = RAW_CONTEXTS
 export const CONTEXT_BY_ID: Record<string, Context> = Object.fromEntries(
   CONTEXTS.map((c) => [c.id, c]),
 )
+
+// V2-Q/R — merge akatsuki_vocab contexts in place, so every existing reader of
+// CONTEXTS / CONTEXT_BY_ID / CONTEXTS_BY_FAMILY sees them. Ids lose the '@'
+// to match existing task tags ('@home' → 'home'). Sorted by vocab `ord`.
+type VocabCtx = { id: string; label?: string; ord?: number; family?: string; alias_of?: string }
+const FAMILY_OF: Record<string, ContextFamily> = { place: 'where', device: 'mode', effort: 'mode', mode: 'mode' }
+// Fallbacks while a vocab row has no meta (seen Oct 4: rows were bare ids).
+const WHERE_IDS = new Set(['home', 'office', 'train', 'transit', 'cafe', 'outside'])
+const ALIAS_FALLBACK: Record<string, string> = { 'deep-work': 'deep-focus' }   // canonical → Roadmap's existing tag
+const bare = (s: string) => s.replace(/^@/, '')
+export function applyVocabContexts(list: VocabCtx[]): void {
+  // canonical ids that already have an alias present in Roadmap → skip them
+  const covered = new Set<string>()
+  for (const v of list) if (v.alias_of && CONTEXT_BY_ID[bare(v.id)]) covered.add(bare(v.alias_of))
+  for (const [canon, rm] of Object.entries(ALIAS_FALLBACK)) if (CONTEXT_BY_ID[rm]) covered.add(canon)
+  const sorted = [...list].sort((a, b) => (a.ord ?? 999) - (b.ord ?? 999))
+  for (const v of sorted) {
+    const id = bare(String(v.id))
+    if (!id || v.alias_of || covered.has(id) || CONTEXT_BY_ID[id]) continue
+    const family: ContextFamily = FAMILY_OF[v.family ?? ''] ?? (WHERE_IDS.has(id) ? 'where' : 'mode')
+    const c: Context = { id, label: v.label ?? '@' + id, family }
+    CONTEXTS.push(c)
+    CONTEXT_BY_ID[id] = c
+    RAW_CONTEXTS[family].push({ id, label: c.label })
+  }
+}
 
 // ─── INITIAL_TREE — seed shape (nested), flattened on insert ──────────
 

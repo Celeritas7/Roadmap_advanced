@@ -1,0 +1,83 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PROTOTYPE · Login page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{--ui:'Hanken Grotesk',system-ui,sans-serif;--display:'Space Grotesk',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;--rad:14px;--rad-sm:9px;--canvas:#fbfbf9;--panel:#fff;--panel-2:#f6f6f3;--ink:#16181d;--ink-2:#565a63;--ink-3:#9a9ea7;--ink-4:#c6c9d0;--rule:#ecece8;--rule-strong:#dedfda;--hover:rgba(20,22,28,.04);--accent:#3b6ef0;--accent-soft:#eaf0fe;--accent-ink:#2452cc;--on-accent:#fff;--shadow-card:0 1px 2px rgba(16,18,29,.04),0 4px 16px rgba(16,18,29,.04);--card-bd:1px solid var(--rule)}
+*{box-sizing:border-box}body{margin:0;background:#eeeeea;font-family:var(--ui)}
+.wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;padding:22px;align-items:start}
+.state{display:flex;flex-direction:column;gap:9px;min-width:0}
+.cap{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#7d8189}
+.frame{background:var(--canvas);border:1px solid var(--rule-strong);border-radius:var(--rad);overflow:hidden}
+.lg-page{min-height:100dvh;display:grid;place-items:center;padding:32px 20px;background:var(--canvas)}
+.frame .lg-page{min-height:0;padding:26px 16px}
+.lg-card{width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;background:var(--panel);border:var(--card-bd);border-radius:var(--rad);box-shadow:var(--shadow-card);padding:30px 28px 24px}
+.lg-mark{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;background:var(--accent-soft);color:var(--accent-ink);font-size:19px;line-height:1}
+.lg-title{margin:0;font-family:var(--display);font-size:25px;line-height:1.15;letter-spacing:-.01em;color:var(--ink)}
+.lg-sub{margin:-6px 0 2px;font-size:13.5px;line-height:1.55;color:var(--ink-2);text-wrap:pretty}
+.lg-who{font-family:var(--mono);font-size:12.5px;color:var(--ink);word-break:break-all}
+.lg-field{display:flex;flex-direction:column;gap:6px}
+.lg-label{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.lg-input{width:100%;padding:11px 13px;font-family:var(--ui);font-size:14.5px;color:var(--ink);background:var(--panel-2);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);outline:none}
+.lg-input::placeholder{color:var(--ink-4)}
+.lg-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--panel)}
+.lg-btn{appearance:none;padding:11px 16px;font-family:var(--ui);font-size:14px;font-weight:600;color:var(--ink);background:var(--panel-2);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);cursor:pointer}
+.lg-btn:hover:not(:disabled){background:var(--hover);border-color:var(--ink-4)}
+.lg-btn.primary{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}
+.lg-btn.primary:hover:not(:disabled){background:var(--accent-ink);border-color:var(--accent-ink)}
+.lg-btn:disabled{opacity:.45;cursor:not-allowed}
+.lg-google{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink);background:var(--panel);border-color:var(--rule-strong)}
+.lg-google:hover:not(:disabled){background:var(--hover);border-color:var(--ink-4)}
+.lg-gmark{flex:none}
+.lg-or{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.lg-or::before,.lg-or::after{content:'';flex:1;height:1px;background:var(--rule-strong)}
+.lg-row{display:flex;gap:8px}.lg-row .lg-btn{flex:1}
+.lg-alt{align-self:flex-start;padding:2px 0;font-family:var(--ui);font-size:13px;color:var(--accent-ink);background:none;border:0;border-bottom:1px solid transparent;cursor:pointer}
+.lg-alt:hover{border-bottom-color:currentColor}
+.lg-note{margin:0;font-size:12px;line-height:1.5;color:var(--ink-3);text-wrap:pretty}
+.lg-ok{display:flex;flex-direction:column;gap:7px;padding:14px 15px;font-size:13.5px;line-height:1.5;color:var(--ink);background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--rad-sm);text-wrap:pretty}
+.lg-ok strong{font-weight:600}.lg-ok .lg-alt{margin-top:2px}
+.lg-err{margin:0;padding:10px 13px;font-size:13px;line-height:1.45;color:#a3222b;background:rgba(200,40,50,.08);border:1px solid rgba(200,40,50,.28);border-radius:var(--rad-sm)}
+.lg-back{margin-top:4px;font-size:12.5px;color:var(--ink-3);text-decoration:none}
+.lg-back:hover{color:var(--ink-2)}
+a{color:var(--accent-ink)}a:hover{color:var(--accent)}
+</style></head><body>
+<div class="wrap">
+<div class="state"><div class="cap">Signed out · default</div><div class="frame"><div class="lg-page"><div class="lg-card">
+<div class="lg-mark">↻</div><h1 class="lg-title">Connect Weekly Focus</h1>
+<p class="lg-sub">Sign in as the Weekly Focus account. The session is stored in this browser only, and exists so the RLS-gated WF tables accept the sync.</p>
+<label class="lg-field"><span class="lg-label">Email</span><input class="lg-input" type="email" placeholder="you@example.com"></label>
+<button type="button" class="lg-btn primary">Email me a sign-in link</button>
+<button type="button" class="lg-alt">Use a password instead</button>
+<div class="lg-or"><span>or</span></div>
+<button type="button" class="lg-btn lg-google"><svg class="lg-gmark" viewBox="0 0 18 18" width="18" height="18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"></path><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"></path><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"></path><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 9 0 9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"></path></svg>Continue with Google</button>
+<a class="lg-back" href="#">← Continue without syncing</a>
+</div></div></div></div>
+
+<div class="state"><div class="cap">Password fallback disclosed · with error</div><div class="frame"><div class="lg-page"><div class="lg-card">
+<div class="lg-mark">↻</div><h1 class="lg-title">Connect Weekly Focus</h1>
+<p class="lg-sub">Sign in as the Weekly Focus account. The session is stored in this browser only, and exists so the RLS-gated WF tables accept the sync.</p>
+<label class="lg-field"><span class="lg-label">Email</span><input class="lg-input" type="email" value="wf@example.com"></label>
+<label class="lg-field"><span class="lg-label">Password</span><input class="lg-input" type="password" value="········"></label>
+<button type="button" class="lg-btn primary">Sign in</button>
+<button type="button" class="lg-alt">Use an emailed link instead</button>
+<p class="lg-note">The WF account has no password set, so this route fails until one is added in Supabase. The emailed link is the working one.</p>
+<div class="lg-or"><span>or</span></div>
+<button type="button" class="lg-btn lg-google"><svg class="lg-gmark" viewBox="0 0 18 18" width="18" height="18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"></path><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.83.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"></path><path fill="#FBBC05" d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"></path><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 9 0 9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"></path></svg>Continue with Google</button>
+<p class="lg-err">Invalid login credentials</p>
+<a class="lg-back" href="#">← Continue without syncing</a>
+</div></div></div></div>
+
+<div class="state"><div class="cap">Link sent</div><div class="frame"><div class="lg-page"><div class="lg-card">
+<div class="lg-mark">↻</div><h1 class="lg-title">Connect Weekly Focus</h1>
+<p class="lg-sub">Sign in as the Weekly Focus account. The session is stored in this browser only, and exists so the RLS-gated WF tables accept the sync.</p>
+<div class="lg-ok"><strong>Link sent to wf@example.com.</strong><span>Open it in <em>this</em> browser — the session is picked up on load and you'll land back on Roadmap.</span><button type="button" class="lg-alt">Use a different address</button></div>
+<a class="lg-back" href="#">← Continue without syncing</a>
+</div></div></div></div>
+
+<div class="state"><div class="cap">Already signed in</div><div class="frame"><div class="lg-page"><div class="lg-card">
+<div class="lg-mark">↻</div><h1 class="lg-title">Already signed in</h1>
+<p class="lg-sub">Weekly Focus sync is authorised in this browser as <span class="lg-who">wf@example.com</span></p>
+<div class="lg-row"><button type="button" class="lg-btn primary">Back to Roadmap</button><button type="button" class="lg-btn">Sign out</button></div>
+<p class="lg-note">Signing out stops Weekly Focus sync only. Roadmap's own tasks are anon-readable and are unaffected either way.</p>
+</div></div></div></div>
+</div></body></html>

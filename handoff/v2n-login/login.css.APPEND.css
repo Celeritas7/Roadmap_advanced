@@ -1,0 +1,35 @@
+/* V2-N — APPEND to src/index.css (or import as its own file) */
+.lg-page{min-height:100dvh;display:grid;place-items:center;padding:32px 20px;background:var(--canvas)}
+.lg-card{width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;background:var(--panel);border:var(--card-bd);border-radius:var(--rad);box-shadow:var(--shadow-card);padding:30px 28px 24px}
+.lg-mark{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;background:var(--accent-soft);color:var(--accent-ink);font-size:19px;line-height:1}
+.lg-title{margin:0;font-family:var(--display);font-size:25px;line-height:1.15;letter-spacing:-.01em;color:var(--ink)}
+.lg-sub{margin:-6px 0 2px;font-family:var(--ui);font-size:13.5px;line-height:1.55;color:var(--ink-2);text-wrap:pretty}
+.lg-who{font-family:var(--mono);font-size:12.5px;color:var(--ink);word-break:break-all}
+.lg-field{display:flex;flex-direction:column;gap:6px}
+.lg-label{font-family:var(--ui);font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.lg-input{width:100%;box-sizing:border-box;padding:11px 13px;font-family:var(--ui);font-size:14.5px;color:var(--ink);background:var(--panel-2);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);outline:none;transition:border-color .12s,box-shadow .12s}
+.lg-input::placeholder{color:var(--ink-4)}
+.lg-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--panel)}
+.lg-btn{appearance:none;padding:11px 16px;font-family:var(--ui);font-size:14px;font-weight:600;color:var(--ink);background:var(--panel-2);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);cursor:pointer;transition:background .12s,border-color .12s}
+.lg-btn:hover:not(:disabled){background:var(--hover);border-color:var(--ink-4)}
+.lg-btn.primary{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}
+.lg-btn.primary:hover:not(:disabled){background:var(--accent-ink);border-color:var(--accent-ink)}
+.lg-btn:disabled{opacity:.45;cursor:not-allowed}
+.lg-google{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink);background:var(--panel);border-color:var(--rule-strong)}
+.lg-google:hover:not(:disabled){background:var(--hover);border-color:var(--ink-4)}
+.lg-gmark{flex:none}
+.lg-or{display:flex;align-items:center;gap:10px;font-family:var(--ui);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.lg-or::before,.lg-or::after{content:'';flex:1;height:1px;background:var(--rule-strong)}
+.lg-row{display:flex;gap:8px}
+.lg-row .lg-btn{flex:1}
+.lg-alt{align-self:flex-start;padding:2px 0;font-family:var(--ui);font-size:13px;color:var(--accent-ink);background:none;border:0;border-bottom:1px solid transparent;cursor:pointer}
+.lg-alt:hover{border-bottom-color:currentColor}
+.lg-note{margin:0;font-family:var(--ui);font-size:12px;line-height:1.5;color:var(--ink-3);text-wrap:pretty}
+.lg-ok{display:flex;flex-direction:column;gap:7px;padding:14px 15px;font-family:var(--ui);font-size:13.5px;line-height:1.5;color:var(--ink);background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--rad-sm);text-wrap:pretty}
+.lg-ok strong{font-weight:600}
+.lg-ok .lg-alt{margin-top:2px}
+.lg-err{margin:0;padding:10px 13px;font-family:var(--ui);font-size:13px;line-height:1.45;color:#a3222b;background:rgba(200,40,50,.08);border:1px solid rgba(200,40,50,.28);border-radius:var(--rad-sm)}
+/* summit is this app's dark theme (trailhead / summit / fieldguide) */
+[data-theme="summit"] .lg-err{color:#ff9ba3;background:rgba(255,90,100,.1);border-color:rgba(255,90,100,.3)}
+.lg-back{margin-top:4px;font-family:var(--ui);font-size:12.5px;color:var(--ink-3);text-decoration:none}
+.lg-back:hover{color:var(--ink-2)}

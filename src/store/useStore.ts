@@ -26,6 +26,7 @@ import * as resourceSync from './resourceSync.ts'
 import * as sessionSync from './studySessions.ts'
 import { isDaily, dayKey, prevDayKey } from '../lib/dailyReset.ts'
 import { readStoredRoadView, storeRoadView, type RoadViewId } from '../features/home/roadViews.ts'
+import { hubAddrOf, tickMirror } from '../lib/rmHub.ts'
 
 export type ThemeName = 'trailhead' | 'summit' | 'fieldguide'
 
@@ -59,6 +60,14 @@ export type StoreState = {
   initialized: boolean
   loading: boolean
   error: string | null
+
+  // V2-Q — Akatsuki hub. pendingDone = mirror ids whose task.done is
+  // published but not yet answered by WF (done flips only on the reply).
+  // hubRev bumps whenever hub-side data the UI reads changes.
+  hubState: 'off' | 'booting' | 'live' | 'error'
+  hubError: string | null
+  pendingDone: string[]
+  hubRev: number
 
   // Mutations
   init: () => Promise<void>
@@ -137,6 +146,10 @@ export const useStore = create<StoreState>((set, get) => ({
   initialized: false,
   loading: true,
   error: null,
+  hubState: 'off',
+  hubError: null,
+  pendingDone: [],
+  hubRev: 0,
 
   init: async () => {
     if (get().initialized) return
@@ -150,6 +163,8 @@ export const useStore = create<StoreState>((set, get) => ({
         resourceSync.fetchResources(),
       ])
       set({ tree, log, settings, resources, loading: false, error: null })
+      // V2-Q: the hub boots from App.tsx once loading=false (rmHub.bootHub).
+
       void runDailyReset(get, set)
       window.setInterval(() => void runDailyReset(get, set), 60_000)
       // The whole point of the ledger: you launch, study elsewhere, come
@@ -169,6 +184,20 @@ export const useStore = create<StoreState>((set, get) => ({
     const prev = get().tree
     const target = prev.find((t) => t.id === id)
     if (!target) return
+    // V2-Q: a WF mirror. WF owns done — publish task.done and leave the box
+    // alone until WF replies applied|already (rmHub flips it then).
+    if (hubAddrOf(id)) {
+      if (target.done) {
+        set({ error: 'Weekly Focus owns this task — un-tick it in Weekly Focus.' })
+        return
+      }
+      try {
+        await tickMirror(id)
+      } catch (e) {
+        set({ error: errorMessage(e) })
+      }
+      return
+    }
     const done = !target.done
     const patch: TaskUpdate = { done }
     if (isDaily(target)) {
@@ -253,6 +282,12 @@ export const useStore = create<StoreState>((set, get) => ({
     // Mirror the DB's ON DELETE CASCADE: drop the node AND its whole subtree
     // from local state so no stale descendants linger before the next fetch.
     const removing = subtreeIds(prev, id)
+    // V2-Q: deletion is orphaning — a WF mirror (or a folder holding one)
+    // is never deleted from Roadmap. Delete it in Weekly Focus.
+    if ([...removing].some((rid) => hubAddrOf(rid))) {
+      set({ error: 'That holds Weekly Focus tasks — delete them in Weekly Focus.' })
+      return
+    }
     set({ tree: prev.filter((t) => !removing.has(t.id)), error: null })
     try {
       await sync.deleteTask(id)

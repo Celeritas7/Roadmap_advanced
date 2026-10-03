@@ -9,6 +9,7 @@ import { useStore } from '../../store/useStore.ts'
 import { useEffectiveRoleId } from '../../hooks/useEffectiveRoleId.ts'
 import { ROLES, ROLE_BY_ID, PROJECTS, PROJECT_BY_ID } from '../../seed.ts'
 import { getDaypart, formatHour12 } from '../../lib/time.ts'
+import { dayLabel, inGraceWindow, untilResetLabel } from '../../lib/dailyReset.ts'
 import { buildTree, type TreeNode } from '../../lib/tree.ts'
 import type { TaskRow } from '../../types.ts'
 import { TodaysLog } from '../log/TodaysLog.tsx'
@@ -102,12 +103,21 @@ export function HomeView() {
     <>
       <section className="home-now" style={{ '--h': role.hue } as CSSProperties}>
         <div className="hn-l">
-          <span className="hn-daypart">{dp.label} · {formatHour12(hour)}</span>
+          <span className="hn-daypart">
+            {dp.label} · {formatHour12(hour)} · <span className="hn-day">{dayLabel()}</span>
+          </span>
           <h2 className="hn-title">{role.mood}</h2>
           <p className="hn-rule">
             {pinned ? 'Pinned to ' : `It's ${dp.label} — leading with `}
             <strong>{role.label}</strong>. All tiers merged into today's road ·
             {' '}{openOnRoad} open {openOnRoad === 1 ? 'stop' : 'stops'} · dailies reset 4:00 AM.
+            {inGraceWindow() ? (
+              <span className="hn-grace">
+                still counting as {dayLabel()} until 4:00 AM ({untilResetLabel()})
+              </span>
+            ) : (
+              'dailies reset 4:00 AM.'
+            )}
           </p>
         </div>
         <div className="hn-r">

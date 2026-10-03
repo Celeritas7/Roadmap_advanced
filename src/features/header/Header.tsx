@@ -5,6 +5,7 @@ import { ROLE_BY_ID } from '../../seed.ts'
 import { useEffectiveRoleId } from '../../hooks/useEffectiveRoleId.ts'
 import { useStore } from '../../store/useStore.ts'
 import { ThemeSwitcher } from './ThemeSwitcher.tsx'
+import { WeeklySync } from './WeeklySync.tsx'
 
 export function Header() {
   // The mood tagline tracks the effective (single) role — shared derivation so
@@ -59,6 +60,7 @@ export function Header() {
       <div className="rm-meta">
         <span className="rm-datepill">{pill}</span>
         <span className="rm-week">{week}</span>
+        <WeeklySync />
         <ThemeSwitcher />
       </div>
     </div>

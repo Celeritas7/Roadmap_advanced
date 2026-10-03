@@ -41,7 +41,10 @@ export function TaskRow({ task, dim }: Props) {
     isDragging,
   } = useSortable({ id: task.id })
 
-  const rowClass = 'row' + (task.done ? ' done' : '') + (isDragging ? ' dragging' : '')
+  // V2-D: a mirror whose Weekly Focus task was deleted or parked keeps its
+  // link row and gains the wf-orphan tag. Mute the row rather than hide it —
+  // the task may still be worth doing; it just no longer has a WF owner.
+  const rowClass = 'row' + (task.done ? ' done' : '') + (isDragging ? ' dragging' : '') + (task.tags.includes('wf-orphan') ? ' wf-orphan' : '')
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,

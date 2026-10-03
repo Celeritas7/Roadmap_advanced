@@ -43,3 +43,21 @@ export function liveStreak(t: TaskRow): number {
 export function isCooled(t: TaskRow): boolean {
   return isDaily(t) && t.done && dayKey(new Date(t.updated_at)) === dayKey()
 }
+
+// "Fri 4 Sep" for a logical-day key. Parses as LOCAL midnight —
+// `new Date('2026-09-04')` would be parsed as UTC and render the 3rd for
+// anyone west of Greenwich.
+export function dayLabel(key: string = dayKey()): string {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
+// True only between midnight and RESET_HOUR — the window where the logical
+// day trails the wall calendar and the date therefore looks wrong.
+export function inGraceWindow(now: Date = new Date()): boolean {
+  return now.getHours() < RESET_HOUR
+}

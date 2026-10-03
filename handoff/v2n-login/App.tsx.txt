@@ -1,10 +1,8 @@
-// V2-O — FULL REPLACEMENT for src/App.tsx
-// Delta vs V2-N: the app is gated. No session → LoginPage, before any data
-// view renders. This is the UI half of the gate; 0003_real_gate.sql is the
-// half that actually protects the data. Shipping either alone is a mistake:
-//   · migration without this → signed-out users see an empty app, not a prompt
-//   · this without the migration → cosmetic, the anon key still reads everything
-import { useEffect, useState } from 'react'
+// V2-N — FULL REPLACEMENT for src/App.tsx
+// Delta vs V2-F: `?login=1` renders LoginPage ahead of the plan window and
+// ahead of the loading/error gates — the sign-in page must be reachable even
+// when the header is broken or the app itself can't load.
+import { useEffect } from 'react'
 import { useStore } from './store/useStore.ts'
 import { useNow } from './hooks/useNow.ts'
 import { useEffectiveRoleId } from './hooks/useEffectiveRoleId.ts'
@@ -17,9 +15,6 @@ import { PlanWindow } from './features/tree/PlanWindow.tsx'
 import { HomeView } from './features/home/HomeView.tsx'
 import { LoginPage } from './features/auth/LoginPage.tsx'
 import { DebugTimeSlider } from './features/debug/DebugTimeSlider.tsx'
-import { onWfAuthChange, wfAuthState, type WfAuthState } from './lib/wfAuth.ts'
-import { bootHub } from './lib/rmHub.ts'
-import { NowStrip } from './features/home/NowStrip.tsx'
 
 const search = new URLSearchParams(window.location.search)
 const planParam = search.get('plan')
@@ -33,55 +28,17 @@ export default function App() {
   const clearError = useStore((s) => s.clearError)
   const theme = useStore((s) => s.theme)
   const view = useStore((s) => s.view)
-  const [auth, setAuth] = useState<WfAuthState>('unknown')
 
   useEffect(() => {
-    let live = true
-    void wfAuthState().then((s) => {
-      if (live) setAuth(s)
-    })
-    const off = onWfAuthChange((s) => setAuth(s))
-    return () => {
-      live = false
-      off()
-    }
-  }, [])
-
-  // init() only once there is a session to read with. Under RLS an anon fetch
-  // returns [] rather than an error, which would render as a convincing empty
-  // app — worse than not loading at all.
-  useEffect(() => {
-    if (auth === 'signed-in') void init()
-  }, [auth, init])
-
-  // V2-Q: the hub starts once — signed in AND the store loaded. AKATSUKI.md:
-  // "consume only after the app's own state has loaded — signed in is not enough".
-  // Not gated on hasData: an empty tree is a valid loaded state (the first
-  // mirrors would be what fills it).
-  useEffect(() => {
-    if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)
-  }, [auth, loading, error])
+    void init()
+  }, [init])
 
   useNow()
-  
+
   const role = useEffectiveRoleId()
   const loadFailed = !!error && !hasData
 
   if (loginParam) {
-    return (
-      <div className="rm" data-theme={theme} data-role={role}>
-        <LoginPage />
-      </div>
-    )
-  }
-
-  // 'unknown' is the pre-resolution frame. Render nothing rather than flash
-  // the login page at a user who has a perfectly good persisted session.
-  if (auth === 'unknown') {
-    return <div className="rm" data-theme={theme} data-role={role} />
-  }
-
-  if (auth === 'signed-out') {
     return (
       <div className="rm" data-theme={theme} data-role={role}>
         <LoginPage />
@@ -143,14 +100,7 @@ export default function App() {
                   </button>
                 </div>
               )}
-              {view === 'home' ? (
-                <>
-                  <NowStrip />
-                  <HomeView />
-                </>
-              ) : (
-                <PlanFolders />
-              )}
+              {view === 'home' ? <HomeView /> : <PlanFolders />}
             </>
           )}
         </main>
