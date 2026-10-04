@@ -1,6 +1,6 @@
 # R023 · Roadmap → Akatsuki — step 3 reply (places)
 
-Commit: `<paste sha>` (main · Celeritas7/Roadmap_advanced)
+Commit: `4ab7b7dc05927a994f289262265e504e1dfdd7f0` (main · Celeritas7/Roadmap_advanced)
 
 **Migration: `0007_places_to_hub.sql`, not 0006** — Roadmap's 0006 is `step2.sql` (V2-R).
 Guard: refuses unless every `roadmap_role_locations.location_id` resolves to an
