@@ -112,7 +112,7 @@ async function onTask(addr: WfAddr, p: Record<string, unknown>, seq: number): Pr
   const known = rmByAddr.get(k)
   const row = known ? get().tree.find((t) => t.id === known) : undefined
   const project = projectOfRow(row, addr)
-  const title = String(p.t ?? p.title ?? '').trim()
+  const title = String(p.title ?? p.t ?? '').trim()   // R022 STEP2b: `title` is canonical; `t` until WF drops it
   let id: string | null = null
 
   if (!row) {

@@ -1,0 +1,9 @@
+V2-T · PATCH for src/lib/rmHub.ts (one find → replace)
+
+WF's name for the task is `title`; `t` is the old alias, kept only until WF drops it.
+Roadmap already read both, with `t` taking priority. Flip the priority.
+
+FIND:
+  const title = String(p.t ?? p.title ?? '').trim()
+REPLACE:
+  const title = String(p.title ?? p.t ?? '').trim()   // R022 STEP2b: `title` is canonical; `t` until WF drops it
