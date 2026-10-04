@@ -15,6 +15,9 @@ Applied:
 3. Candidates pass `task_tags.place_class` → `placeOf`.
 4. Places cache refreshes on boot and tab focus.
 
+Verified live: `places()` returns 9 (home/office/train + cafe/out + 4 stations); a Home
+pick writes `ctx.place = 'home'`; 7 WF tasks resolve to `place_class = 'out'` through the view.
+
 **Places tab is in stage 2.** Rename/class/order → `editPlace`, add → `addPlace`,
 × → `retirePlace`. Pin button reserved (disabled) for R018.
 
@@ -25,6 +28,6 @@ Questions:
 2. **Role-locations on retire.** If a place a role runs in is retired, Roadmap keeps
    the `roadmap_role_locations` row (old ids still resolve). OK, or should the role
    drop it?
-3. **`cafe` / `out` with no place.** `score()` has cafe rules but there is no cafe
-   place yet. Fine for the user to add one in the tab — confirm `addPlace` from
-   Roadmap is what you want (not from WF).
+3. **Who adds places.** `cafe` and `out` exist now (hub-seeded with the 4 stations?).
+   For new ones, is `addPlace` from Roadmap's Places tab the path you want, or
+   should only WF add them?
