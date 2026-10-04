@@ -7,7 +7,7 @@ import { supabase } from './supabase.ts'
 import { dayKey, prevDayKey } from './dailyReset.ts'
 import * as sessionSync from '../store/studySessions.ts'
 import { activeRoleIds, effectiveRoleId } from '../store/selectors.ts'
-import { addrKey, hubAddrOf, hubInstance, hubTags, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
+import { addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
 import type { AkBanner, Device, Energy, RmHubInstance, SuggestCtx, SuggestTask, WfAddr } from '../types.ts'
 import type { useStore } from '../store/useStore.ts'
 
@@ -72,9 +72,21 @@ export function readDevice(): Device {
   return matchMedia('(pointer: coarse)').matches ? 'phone' : 'laptop'
 }
 export function saveDevice(d: Device) { localStorage.setItem(K_DEVICE, d); bump() }
-// Manual pick from vocab `enum place` until R018 (GPS) lands.
-export const readPlace = () => localStorage.getItem(K_PLACE) || 'anywhere'
-export function savePlace(p: string) { localStorage.setItem(K_PLACE, p); bump() }
+// R023: manual pick from the hub's places() until R018 (GPS) lands.
+// Stored value is a place id. Pre-R023 it was an enum word ('transit'):
+// resolve by id → alias/label → class, else 'anywhere'; write the id back.
+export function readPlace(): string {
+  const v = localStorage.getItem(K_PLACE) || 'anywhere'
+  const list = hubPlaces()
+  if (v === 'anywhere' || !list.length) return v   // places not loaded yet: keep the pick
+  const hit = list.find((p) => p.id === v) ?? hubInstance()?.hub.matchPlace(list, v) ?? list.find((p) => p.class === v)
+  const id = hit ? hit.id : 'anywhere'
+  if (id !== v) localStorage.setItem(K_PLACE, id)   // also clears a retired pick
+  return id
+}
+export function savePlace(id: string) { localStorage.setItem(K_PLACE, id); bump(); void tick() }
+export const placeClassOf = (id: string): string =>
+  id === 'anywhere' ? 'anywhere' : hubPlaces().find((p) => p.id === id)?.class ?? 'anywhere'
 
 function buildCtx(): SuggestCtx {
   const s = store!.getState()
@@ -86,7 +98,7 @@ function buildCtx(): SuggestCtx {
     energy: c?.energy ?? 'mid',
     mood: c?.mood ?? '',
     device: readDevice(),
-    place: readPlace(),
+    place: placeClassOf(readPlace()),
     activeRole: effectiveRoleId(activeRoleIds(s.now, s.settings?.role_overrides ?? {}), s.selectedRole),
   }
 }
@@ -103,7 +115,7 @@ function candidates(): SuggestTask[] {
     out.push({
       addr, rmId, title: row.title, done: row.done,
       parked: row.tags.includes('parked'), deleted: row.tags.includes('orphaned'),
-      ctx: r.ctx ?? [], urg: r.urg, dl: r.dl, type: r.type, effort: r.effort,
+      ctx: r.ctx ?? [], urg: r.urg, dl: r.dl, type: r.type, effort: r.effort, place_class: r.place_class ?? null,
       level: r.level ?? levelOfProject(projectOfRow(row, addr)),
     })
   }

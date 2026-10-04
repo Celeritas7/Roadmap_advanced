@@ -1,0 +1,45 @@
+V2-S — PATCH for src/lib/suggester.ts (four find → replace edits)
+
+The "At" pick stores a hub place ID (home / office / train …). The suggester
+gets that place's CLASS (home / office / transit / cafe / out) as ctx.place,
+or 'anywhere'. A task's place comes from task_tags.place_class (adapter's placeOf).
+
+── 1 · import ──────────────────────────────────────────────────────────
+FIND:
+import { addrKey, hubAddrOf, hubInstance, hubTags, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
+REPLACE:
+import { addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
+
+── 2 · the pick is a place id; the old enum value migrates once ────────
+FIND:
+// Manual pick from vocab `enum place` until R018 (GPS) lands.
+export const readPlace = () => localStorage.getItem(K_PLACE) || 'anywhere'
+export function savePlace(p: string) { localStorage.setItem(K_PLACE, p); bump() }
+REPLACE:
+// R023: manual pick from the hub's places() until R018 (GPS) lands.
+// Stored value is a place id. Pre-R023 it was an enum word ('transit'):
+// resolve by id → alias/label → class, else 'anywhere'; write the id back.
+export function readPlace(): string {
+  const v = localStorage.getItem(K_PLACE) || 'anywhere'
+  const list = hubPlaces()
+  if (v === 'anywhere' || !list.length) return v   // places not loaded yet: keep the pick
+  const hit = list.find((p) => p.id === v) ?? hubInstance()?.hub.matchPlace(list, v) ?? list.find((p) => p.class === v)
+  const id = hit ? hit.id : 'anywhere'
+  if (id !== v) localStorage.setItem(K_PLACE, id)   // also clears a retired pick
+  return id
+}
+export function savePlace(id: string) { localStorage.setItem(K_PLACE, id); bump(); void tick() }
+export const placeClassOf = (id: string): string =>
+  id === 'anywhere' ? 'anywhere' : hubPlaces().find((p) => p.id === id)?.class ?? 'anywhere'
+
+── 3 · ctx.place is the class ──────────────────────────────────────────
+FIND:
+    place: readPlace(),
+REPLACE:
+    place: placeClassOf(readPlace()),
+
+── 4 · candidates carry the task's place ───────────────────────────────
+FIND:
+      ctx: r.ctx ?? [], urg: r.urg, dl: r.dl, type: r.type, effort: r.effort,
+REPLACE:
+      ctx: r.ctx ?? [], urg: r.urg, dl: r.dl, type: r.type, effort: r.effort, place_class: r.place_class ?? null,

@@ -9,7 +9,7 @@ import {
   clearCheckin, needsCheckin, readCheckin, readDevice, readPlace, reviewDue,
   saveCheckin, saveDevice, savePlace, weekReview, weekStart, type WeekReview,
 } from '../../lib/suggester.ts'
-import { addrKey, correctTag, hubInstance, hubTags, tagAddr } from '../../lib/rmHub.ts'
+import { addrKey, correctTag, hubInstance, hubPlaces, hubTags, tagAddr } from '../../lib/rmHub.ts'
 import type { Device, Energy } from '../../types.ts'
 
 const ENERGY: Energy[] = ['high', 'mid', 'low']
@@ -29,7 +29,7 @@ export function NowStrip() {
   const hub = hubInstance()
   const moodVocab = hub?.enums('mood') ?? []
   const moods = moodVocab.length >= 3 ? moodVocab.slice(0, 3) : FALLBACK_MOOD
-  const places = ['anywhere', ...(hub?.enums('place') ?? []).filter((p) => p !== 'anywhere')]
+  const places = hubPlaces()
   const checkin = readCheckin()
   const device = readDevice()
   const place = readPlace()
@@ -87,7 +87,8 @@ export function NowStrip() {
         </div>
         <span className="ns-k">At</span>
         <select className="ns-sel" value={place} onChange={(e) => savePlace(e.target.value)} aria-label="Place">
-          {places.map((p) => <option key={p} value={p}>{p}</option>)}
+          <option value="anywhere">anywhere</option>
+          {places.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
       </div>
 

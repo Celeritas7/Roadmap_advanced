@@ -9,7 +9,7 @@ import { dayKey } from './dailyReset.ts'
 import { PROJECT_BY_ID, applyVocabContexts } from '../seed.ts'
 import * as sync from '../store/sync.ts'
 import * as suggester from './suggester.ts'
-import type { HubReplyRow, HubTagRow, RmHubInstance, TaskRow, TaskUpdate, WfAddr } from '../types.ts'
+import type { HubPlace, HubReplyRow, HubTagRow, RmHubInstance, TaskRow, TaskUpdate, WfAddr } from '../types.ts'
 import type { useStore } from '../store/useStore.ts'
 
 type Store = typeof useStore
@@ -37,6 +37,21 @@ export const hubAddrOf = (rmId: string): WfAddr | null => addrByRm.get(rmId) ?? 
 export const rmIdOf = (a: WfAddr): string | null => rmByAddr.get(addrKey(a)) ?? null
 export const hubInstance = () => hub
 export const hubTags = () => tagRows
+
+// R023: Akatsuki owns places for every app. Read-through cache, refreshed on
+// boot and on tab focus (another app may have renamed or retired one).
+let placeRows: HubPlace[] = []
+export const hubPlaces = () => placeRows
+export async function refreshPlaces(): Promise<HubPlace[]> {
+  if (!hub) return placeRows
+  try {
+    placeRows = await hub.hub.places()
+    store?.setState({ hubRev: get().hubRev + 1 })
+  } catch (e) {
+    console.warn('[ak] places', (e as { code?: string }).code, (e as Error).message)   // keep the last list
+  }
+  return placeRows
+}
 // akatsuki_task_tags may carry the address as `addr` (jsonb), as three columns,
 // or only as `addr_key` "board/item_key/sub". item_key itself may contain '/'
 // (study:MEDICINE/Neurology/Elite) — board_id and sub_id never do.
@@ -311,6 +326,7 @@ export function bootHub(s: Store): Promise<void> {
 
     const vocab = await hub.loadVocab()
     applyVocabContexts(vocab.context)
+    await refreshPlaces()
     for (const l of await hub.links()) if (l.rmId) remember(l.wf, l.rmId)
     tagRows = await hub.tags()
     await writeGuesses()
@@ -325,7 +341,7 @@ export function bootHub(s: Store): Promise<void> {
     })
     void pollReplies()
     window.setInterval(() => { if (Object.keys(readPending()).length) void pollReplies() }, 15_000)
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) void pollReplies() })
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { void pollReplies(); void refreshPlaces() } })
   })().catch((e: { code?: string; message?: string }) => {
     booting = null
     console.error('[ak] boot failed', e?.code, e?.message)

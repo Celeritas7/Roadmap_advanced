@@ -214,7 +214,21 @@ export type HubTagRow = {
   effort?: string | null
   level?: string | null
   guessed?: boolean | null
+  place_class?: string | null   // R023: WF's loc → akatsuki_places.class
   [k: string]: unknown
+}
+
+export type HubPlace = {
+  id: string
+  label: string
+  class: string                 // vocab enum place_class: home | office | transit | cafe | out
+  aliases: string[] | null
+  ord: number | null
+  lat: number | null            // R018 (GPS) — read, not yet written
+  lng: number | null
+  radius_m: number | null
+  retired_at?: string | null
+  seq?: number
 }
 
 export type HubVocab = {
@@ -260,6 +274,7 @@ export type SuggestTask = {
   type?: string | null
   effort?: string | null
   level?: string | null
+  place_class?: string | null
 }
 
 export type HubTagValue = { type?: string | null; effort?: string | null; level?: string | null; guessed?: boolean }
@@ -268,6 +283,11 @@ export type RmHubInstance = {
   hub: {
     publish(p: { to: string; kind: string; addr: WfAddr; payload: Record<string, unknown>; key?: string }): Promise<HubPublishResult>
     orphan(a: WfAddr): Promise<unknown>
+    places(o?: { withRetired?: boolean }): Promise<HubPlace[]>
+    matchPlace(list: HubPlace[], word: string): HubPlace | null
+    addPlace(label: string, cls?: string): Promise<{ id: string; label: string; class: string; status: 'created' | 'exists' }>
+    editPlace(id: string, patch: { label?: string; class?: string; ord?: number; aliases?: string[] }): Promise<unknown>
+    retirePlace(id: string): Promise<unknown>
   }
   loadVocab(): Promise<HubVocab>
   vocab(): HubVocab | null

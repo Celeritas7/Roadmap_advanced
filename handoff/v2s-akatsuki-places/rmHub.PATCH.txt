@@ -1,0 +1,42 @@
+V2-S — PATCH for src/lib/rmHub.ts (four find → replace edits)
+
+── 1 · type import ─────────────────────────────────────────────────────
+FIND:
+import type { HubReplyRow, HubTagRow, RmHubInstance, TaskRow, TaskUpdate, WfAddr } from '../types.ts'
+REPLACE:
+import type { HubPlace, HubReplyRow, HubTagRow, RmHubInstance, TaskRow, TaskUpdate, WfAddr } from '../types.ts'
+
+── 2 · places cache (the hub's list; Roadmap keeps no copy in its DB) ────
+FIND:
+export const hubInstance = () => hub
+export const hubTags = () => tagRows
+REPLACE:
+export const hubInstance = () => hub
+export const hubTags = () => tagRows
+
+// R023: Akatsuki owns places for every app. Read-through cache, refreshed on
+// boot and on tab focus (another app may have renamed or retired one).
+let placeRows: HubPlace[] = []
+export const hubPlaces = () => placeRows
+export async function refreshPlaces(): Promise<HubPlace[]> {
+  if (!hub) return placeRows
+  try {
+    placeRows = await hub.hub.places()
+    store?.setState({ hubRev: get().hubRev + 1 })
+  } catch (e) {
+    console.warn('[ak] places', (e as { code?: string }).code, (e as Error).message)   // keep the last list
+  }
+  return placeRows
+}
+
+── 3 · boot: load places before the suggester starts ───────────────────
+FIND:
+    for (const l of await hub.links()) if (l.rmId) remember(l.wf, l.rmId)
+REPLACE:
+    await refreshPlaces()
+    for (const l of await hub.links()) if (l.rmId) remember(l.wf, l.rmId)
+
+FIND:
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) void pollReplies() })
+REPLACE:
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { void pollReplies(); void refreshPlaces() } })

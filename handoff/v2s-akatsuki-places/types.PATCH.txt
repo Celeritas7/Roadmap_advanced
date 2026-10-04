@@ -1,0 +1,53 @@
+V2-S — PATCH for src/types.ts (three find → replace edits)
+
+── 1 · tag rows carry WF's loc, resolved by the hub ─────────────────────
+FIND:
+  guessed?: boolean | null
+  [k: string]: unknown
+}
+REPLACE:
+  guessed?: boolean | null
+  place_class?: string | null   // R023: WF's loc → akatsuki_places.class
+  [k: string]: unknown
+}
+
+export type HubPlace = {
+  id: string
+  label: string
+  class: string                 // vocab enum place_class: home | office | transit | cafe | out
+  aliases: string[] | null
+  ord: number | null
+  lat: number | null            // R018 (GPS) — read, not yet written
+  lng: number | null
+  radius_m: number | null
+  retired_at?: string | null
+  seq?: number
+}
+
+── 2 · the suggester sees it ───────────────────────────────────────────
+FIND:
+  effort?: string | null
+  level?: string | null
+}
+
+export type HubTagValue
+REPLACE:
+  effort?: string | null
+  level?: string | null
+  place_class?: string | null
+}
+
+export type HubTagValue
+
+── 3 · the client's places API ─────────────────────────────────────────
+FIND:
+    orphan(a: WfAddr): Promise<unknown>
+  }
+REPLACE:
+    orphan(a: WfAddr): Promise<unknown>
+    places(o?: { withRetired?: boolean }): Promise<HubPlace[]>
+    matchPlace(list: HubPlace[], word: string): HubPlace | null
+    addPlace(label: string, cls?: string): Promise<{ id: string; label: string; class: string; status: 'created' | 'exists' }>
+    editPlace(id: string, patch: { label?: string; class?: string; ord?: number; aliases?: string[] }): Promise<unknown>
+    retirePlace(id: string): Promise<unknown>
+  }

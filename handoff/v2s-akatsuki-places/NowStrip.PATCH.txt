@@ -1,0 +1,20 @@
+V2-S — PATCH for src/features/home/NowStrip.tsx (three find → replace edits)
+
+── 1 · import ──────────────────────────────────────────────────────────
+FIND:
+import { addrKey, correctTag, hubInstance, hubTags, tagAddr } from '../../lib/rmHub.ts'
+REPLACE:
+import { addrKey, correctTag, hubInstance, hubPlaces, hubTags, tagAddr } from '../../lib/rmHub.ts'
+
+── 2 · list from the hub, not vocab `enum place` ───────────────────────
+FIND:
+  const places = ['anywhere', ...(hub?.enums('place') ?? []).filter((p) => p !== 'anywhere')]
+REPLACE:
+  const places = hubPlaces()
+
+── 3 · options: value = id, text = label ───────────────────────────────
+FIND:
+          {places.map((p) => <option key={p} value={p}>{p}</option>)}
+REPLACE:
+          <option value="anywhere">anywhere</option>
+          {places.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
