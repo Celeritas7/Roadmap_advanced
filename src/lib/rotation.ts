@@ -33,6 +33,19 @@ function groupBy(ts: SuggestTask[], key: (t: SuggestTask) => string): Map<string
   return m
 }
 
+/** category → the slot it serves today: the first one started or done today. */
+export function lockedSlots(served: Served[], today = dayKey()): Map<string, string> {
+  const first = new Map<string, { key: string; at: number }>()
+  for (const s of served) {
+    const at = Date.parse(s.at)
+    if (Number.isNaN(at) || dayKey(new Date(at)) !== today) continue
+    const cat = categoryOf(s.task.item_key)
+    const cur = first.get(cat)
+    if (!cur || at < cur.at) first.set(cat, { key: s.task.item_key, at })
+  }
+  return new Map([...first].map(([cat, v]) => [cat, v.key]))
+}
+
 export function rotate(cands: SuggestTask[], ctx: SuggestCtx, served: Served[], score: Score, today = dayKey()): SuggestTask[] {
   const scored = new Map<SuggestTask, number>()
   for (const c of cands) {
@@ -43,7 +56,6 @@ export function rotate(cands: SuggestTask[], ctx: SuggestCtx, served: Served[], 
 
   const lastSlot = new Map<string, number>()
   const lastCat = new Map<string, number>()
-  const todaySlot = new Map<string, { key: string; at: number }>()   // category → slot served today
   for (const s of served) {
     const at = Date.parse(s.at)
     if (Number.isNaN(at)) continue
@@ -51,9 +63,8 @@ export function rotate(cands: SuggestTask[], ctx: SuggestCtx, served: Served[], 
     const cat = categoryOf(k)
     if (at > (lastSlot.get(k) ?? -Infinity)) lastSlot.set(k, at)
     if (at > (lastCat.get(cat) ?? -Infinity)) lastCat.set(cat, at)
-    const cur = todaySlot.get(cat)
-    if (dayKey(new Date(at)) === today && (!cur || at > cur.at)) todaySlot.set(cat, { key: k, at })
   }
+  const todaySlot = lockedSlots(served, today)
 
   const best = (ts: SuggestTask[]) => Math.max(...ts.map((t) => scored.get(t)!))
   // Longest wait first; equal waits (e.g. both never served) → higher priority.
@@ -69,7 +80,7 @@ export function rotate(cands: SuggestTask[], ctx: SuggestCtx, served: Served[], 
     const slots = groupBy(ts, (t) => t.addr.item_key)
     const locked = todaySlot.get(cat)
     if (locked) {
-      const hit = slots.get(locked.key)
+      const hit = slots.get(locked)
       if (hit) return hit
       continue   // today's slot has nothing doable now: no other slot of this category today
     }
