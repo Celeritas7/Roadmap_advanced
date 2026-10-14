@@ -21,7 +21,7 @@ function placeNote(r: ResolvedPlace): string {
   const ago = r.at == null ? '' : `${Math.max(0, Math.round((Date.now() - r.at) / 60_000))} min ago`
   if (r.src === 'pick') return `${r.label} · you picked`
   if (r.src === 'hub') return `${r.label} · from hub, ${ago}`
-  if (r.src === 'stale') return `${r.label} · left ${ago}, stale`
+  if (r.src === 'stale') return r.open ? `${r.label} · since ${ago}, stale` : `${r.label} · left ${ago}, stale`
   return 'unknown · no recent location'
 }
 
@@ -96,8 +96,9 @@ export function NowStrip() {
           ))}
         </div>
         <span className="ns-k">At</span>
-        <select className="ns-sel" value={pick ?? 'anywhere'} onChange={(e) => savePlace(e.target.value)} aria-label="Place">
-          <option value="anywhere">auto (hub)</option>
+        <select className="ns-sel" value={pick ?? 'auto'} onChange={(e) => savePlace(e.target.value)} aria-label="Place">
+          <option value="auto">auto (hub)</option>
+          <option value="anywhere">anywhere</option>
           {places.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
         <span className="ns-note">{placeNote(where)}</span>

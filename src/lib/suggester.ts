@@ -82,39 +82,44 @@ export function saveDevice(d: Device) { localStorage.setItem(K_DEVICE, d); bump(
 export function readPlace(): string {
   const v = localStorage.getItem(K_PLACE) || 'anywhere'
   const list = hubPlaces()
-  if (v === 'anywhere' || !list.length) return v   // places not loaded yet: keep the pick
+  if (v === 'anywhere' || v === 'auto' || !list.length) return v   // places not loaded yet: keep the pick
   const hit = list.find((p) => p.id === v) ?? hubInstance()?.hub.matchPlace(list, v) ?? list.find((p) => p.class === v)
   const id = hit ? hit.id : 'anywhere'
   if (id !== v) localStorage.setItem(K_PLACE, id)   // also clears a retired pick
   return id
 }
-/** Picking 'anywhere' clears the override: the hub decides again. */
+/** 'auto' clears the override (the hub decides again). Anything else, 'anywhere' included, is a timed pick. */
 export function savePlace(id: string) {
-  localStorage.setItem(K_PLACE, id)
-  if (id === 'anywhere') localStorage.removeItem(K_PLACE_AT)
-  else localStorage.setItem(K_PLACE_AT, String(Date.now()))
+  if (id === 'auto') {
+    localStorage.removeItem(K_PLACE)
+    localStorage.removeItem(K_PLACE_AT)
+  } else {
+    localStorage.setItem(K_PLACE, id)
+    localStorage.setItem(K_PLACE_AT, String(Date.now()))
+  }
   bump()
   void tick()
 }
-export const placeClassOf = (id: string): string =>
-  id === 'anywhere' ? 'anywhere' : hubPlaces().find((p) => p.id === id)?.class ?? 'anywhere'
-/** The manual pick, if made in the last 2 h; else null. Picks without a time (pre-R033) count as old. */
+/** The manual pick ('anywhere' or a place id), if made in the last 2 h; else null. Picks without a time (pre-R033) count as old. */
 export function pickedPlace(): string | null {
   const id = readPlace()
-  if (id === 'anywhere') return null
+  if (id === 'auto') return null
   const at = Number(localStorage.getItem(K_PLACE_AT) || 0)
   return Date.now() - at < PICK_TTL ? id : null
 }
 
 // R033 · ctx.place, in order: (a) a fresh manual pick → (b) whereNow()[0] →
-// (c) the newest visit, if it ended < 30 min ago (stale) → (d) 'anywhere'.
-// Empty whereNow() means unknown, never "away".
-export type ResolvedPlace = { cls: string; label: string; src: PlaceSource; at: number | null }
+// (c) the newest visit, stale: ended < 30 min ago, or still open (until null,
+// aged from since) → (d) 'anywhere'. Empty whereNow() means unknown, never "away".
+// `open` = (c) on a visit with no until.
+export type ResolvedPlace = { cls: string; label: string; src: PlaceSource; at: number | null; open?: boolean }
 export function resolvePlace(): ResolvedPlace {
   const pick = pickedPlace()
   if (pick) {
+    const at = Number(localStorage.getItem(K_PLACE_AT))
+    if (pick === 'anywhere') return { cls: 'anywhere', label: 'anywhere', src: 'pick', at }
     const p = hubPlaces().find((x) => x.id === pick)
-    return { cls: p?.class ?? 'anywhere', label: p?.label ?? pick, src: 'pick', at: Number(localStorage.getItem(K_PLACE_AT)) }
+    return { cls: p?.class ?? 'anywhere', label: p?.label ?? pick, src: 'pick', at }
   }
   const w = hubWhere()
   const now = Date.now()
@@ -122,8 +127,12 @@ export function resolvePlace(): ResolvedPlace {
     const r = w.now[0]   // newest first; two devices may report one stop — take the newest, no dedupe
     if (r) return { cls: r.class, label: r.place_label ?? r.anchor_label ?? r.class, src: 'hub', at: Date.parse(r.last_seen_at) }
     const v = w.visits[0]
-    const ended = v?.until ? Date.parse(v.until) : NaN
-    if (v && now - ended < STALE_VISIT_MS) return { cls: v.class, label: v.place_label ?? v.anchor_label ?? v.class, src: 'stale', at: ended }
+    if (v) {
+      const label = v.place_label ?? v.anchor_label ?? v.class
+      if (!v.until) return { cls: v.class, label, src: 'stale', at: Date.parse(v.since), open: true }
+      const ended = Date.parse(v.until)
+      if (now - ended < STALE_VISIT_MS) return { cls: v.class, label, src: 'stale', at: ended }
+    }
   }
   return { cls: 'anywhere', label: 'anywhere', src: 'none', at: null }
 }
