@@ -6,8 +6,8 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import {
-  clearCheckin, needsCheckin, readCheckin, readDevice, readPlace, reviewDue,
-  saveCheckin, saveDevice, savePlace, weekReview, weekStart, type WeekReview,
+  clearCheckin, needsCheckin, pickedPlace, readCheckin, readDevice, resolvePlace, reviewDue,
+  saveCheckin, saveDevice, savePlace, weekReview, weekStart, type ResolvedPlace, type WeekReview,
 } from '../../lib/suggester.ts'
 import { addrKey, correctTag, hubInstance, hubPlaces, hubTags, tagAddr } from '../../lib/rmHub.ts'
 import type { Device, Energy } from '../../types.ts'
@@ -15,6 +15,15 @@ import type { Device, Energy } from '../../types.ts'
 const ENERGY: Energy[] = ['high', 'mid', 'low']
 const DEVICES: Device[] = ['phone', 'laptop', 'either']
 const FALLBACK_MOOD = ['down', 'even', 'up']
+
+// R033: say where ctx.place came from. Unknown stays unknown — never a place.
+function placeNote(r: ResolvedPlace): string {
+  const ago = r.at == null ? '' : `${Math.max(0, Math.round((Date.now() - r.at) / 60_000))} min ago`
+  if (r.src === 'pick') return `${r.label} · you picked`
+  if (r.src === 'hub') return `${r.label} · from hub, ${ago}`
+  if (r.src === 'stale') return `${r.label} · left ${ago}, stale`
+  return 'unknown · no recent location'
+}
 
 export function NowStrip() {
   const hubState = useStore((s) => s.hubState)
@@ -32,7 +41,8 @@ export function NowStrip() {
   const places = hubPlaces()
   const checkin = readCheckin()
   const device = readDevice()
-  const place = readPlace()
+  const pick = pickedPlace()
+  const where = resolvePlace()
 
   const cur = window.rm?.banner.current() ?? null
   const live = cur && Date.parse(cur.until) > Date.now() ? cur : null
@@ -86,10 +96,11 @@ export function NowStrip() {
           ))}
         </div>
         <span className="ns-k">At</span>
-        <select className="ns-sel" value={place} onChange={(e) => savePlace(e.target.value)} aria-label="Place">
-          <option value="anywhere">anywhere</option>
+        <select className="ns-sel" value={pick ?? 'anywhere'} onChange={(e) => savePlace(e.target.value)} aria-label="Place">
+          <option value="anywhere">auto (hub)</option>
           {places.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
+        <span className="ns-note">{placeNote(where)}</span>
       </div>
 
       {live && tag && (

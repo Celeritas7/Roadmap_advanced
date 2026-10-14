@@ -17,6 +17,9 @@
  * Works against pre-R017 SQL too (old messages still match; defer needs R017).
  * Sep 26: doc() merges a path held by two owners (calapp_sukkiri.cycles) instead of
  * keeping only the last; returns rows for per-owner reads. keys() lists my live rows.
+ * R026 (data-loss review): flush() no longer overwrites publishes queued while it runs, runs
+ * one at a time, and keeps refused rows (they succeed after sign-in). A handler that THROWS now
+ * defers (retried) instead of rejecting for good; return { reject: 'reason' } to reject.
  */
 (function () {
   const hash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
@@ -31,6 +34,7 @@
     const readBox = () => { try { return JSON.parse(localStorage.getItem(OUTBOX) || '[]'); } catch { return []; } };
     const writeBox = (rows) => localStorage.setItem(OUTBOX, JSON.stringify(rows));
     const log = opts.log || (() => {});
+    let flushing = null;
 
     async function rpc(fn, args) {
       const { data, error } = await supabase.rpc(fn, args);
@@ -51,18 +55,29 @@
           const r = Array.isArray(rows) ? rows[0] : rows;
           log(r.status, r.seq); return r;
         } catch (e) {
-          if (isContract(e)) throw e;   // contract errors: never queue
+          if (isContract(e)) { log('contract', e.code, e.message); throw Object.assign(e, { code: e.code || 'AK100', contract: true }); }   // hub refused the call (kind, route, payload): fix it, never queue
           if (isRefused(e)) { log('refused', e.code, e.message); throw Object.assign(e, { code: e.code || 'AK303', refused: true }); }   // hub said no: sign in, then re-publish
           writeBox([...readBox(), p]); log('queued after error', e.message); return { status: 'queued', code: 'AK302', error: e.message, retry: true };
         }
       },
 
       /** Flush the offline outbox. Called automatically on 'online'. */
-      async flush() {
-        const box = readBox(); if (!box.length) return 0;
-        const left = [];
-        for (const p of box) { try { await rpc('akatsuki_publish', { p }); } catch (e) { if (!isContract(e) && !isRefused(e)) left.push(p); else console.warn('[ak] dropped', e.code, e.message); } }
-        writeBox(left); return box.length - left.length;
+      flush() {
+        if (flushing) return flushing;
+        flushing = (async () => {
+          const box = readBox(); if (!box.length) return 0;
+          const gone = new Set();   // sent, or refused for good (contract) — everything else stays
+          for (const p of box) {
+            try { await rpc('akatsuki_publish', { p }); gone.add(p.idempotency_key); }
+            catch (e) {
+              if (isContract(e)) { gone.add(p.idempotency_key); console.warn('[ak] dropped (contract)', e.code, e.message); }
+              else if (isRefused(e)) { log('flush refused — kept until sign-in', e.code); break; }
+            }
+          }
+          writeBox(readBox().filter(p => !gone.has(p.idempotency_key)));   // re-read: keeps rows queued during the flush
+          return gone.size;
+        })().finally(() => { flushing = null; });
+        return flushing;
       },
 
       /** Read everything addressed to me past my cursor and hand each row to a handler by kind.
@@ -75,7 +90,8 @@
           if (!h) { await hub.ack(r.seq, { status: 'skipped' }); continue; }
           let res;
           try { res = (await h(r)) || {}; }
-          catch (e) { await hub.ack(r.seq, { status: 'rejected' }); log('rejected', r.seq, e.message); continue; }
+          catch (e) { res = { defer: 'handler error: ' + (e && e.message || e) }; log('handler threw — deferred', r.seq, e && e.message); }
+          if (res.reject) { await hub.ack(r.seq, { status: 'rejected' }); log('rejected', r.seq, res.reject); continue; }
           if (res.defer) {   // row stays pending; a failed defer call must not reject it
             try { await rpc('akatsuki_defer', { p_app: app, p_seq: r.seq, p_reason: String(res.defer) }); log('deferred', r.seq, res.defer); }
             catch (e) { log('defer failed (pre-R017?)', r.seq, e.message); }
@@ -138,6 +154,22 @@
       editPlace(id, patch) { return rpc('akatsuki_place_edit', { p_id: id, p: patch, p_app: app }); },
       /** Retire (never deleted; old tasks still resolve). */
       retirePlace(id) { return rpc('akatsuki_place_retire', { p_id: id, p_app: app }); },
+
+      /* ── Location (R018 · R033).  Read-only.  Visits only, never coordinates (the waist). ── */
+      /** Where the user is now, newest first: [{ device, since, last_seen_at, place_id, place_label, anchor_label, class }].
+       *  Empty when nothing is recording — that means "unknown", not "away". */
+      async whereNow() {
+        const { data, error } = await supabase.from('akatsuki_where_now').select('*').order('last_seen_at', { ascending: false });
+        if (error) throw new Error(error.message);
+        return data || [];
+      },
+      /** Visits in the last `days` (max 30), newest first: [{ since, until, end_reason, place_id, place_label, anchor_label, class, source_app }]. until = null → still there. */
+      async visits({ days = 7 } = {}) {
+        const from = new Date(Date.now() - Math.min(days, 30) * 864e5).toISOString();
+        const { data, error } = await supabase.from('akatsuki_visits_recent').select('*').gte('since', from).order('since', { ascending: false });
+        if (error) throw new Error(error.message);
+        return data || [];
+      },
 
       /** Read a whole doc re-grouped by path: { cycles: [...], away: [...], show: true } */
       async doc(doc) {

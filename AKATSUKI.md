@@ -1,10 +1,33 @@
-Akatsuki standard v3.3 · 2026-09-26 · location (Option B) · R017 codes · document rows · shared content · dual session
+Akatsuki standard v3.7 · 2026-10-14 · background location · hub records location · data health · three layers · location (Option B) · R017 codes · document rows · shared content · dual session
 
 # AKATSUKI.md — copy into the root of every app that joins the hub
 
 Add one line to that app's own CLAUDE.md:
 `Follow AKATSUKI.md for anything touching the hub.`
 When the hub's copy has a newer version line, copy it again.
+
+## Three layers (v3.4) — who owns what
+- **Facts live in the hub.** Location, places, visits, weather, mood entries, health metrics, and every external API key/fetch. Read them from the hub; never fetch the same API yourself.
+- **Your domain stays yours.** Own your records and research; write shared facts into the hub; never read another app.
+- **Judgements are Neurology's.** Behavioural model, detectors, interventions. Neurology owns no raw facts and publishes its outputs as a feed any app can subscribe to.
+- Raw high-volume data (GPS pings) never goes up to interpretive apps — only summaries (visits, routes, novelty).
+
+## Data health (v3.5)
+- **Store your own records safely:** one row per record · save only what changed · a delete
+  leaves a marker, never a missing entry · reject a save made from a stale copy · pull before
+  the first push · refuse a save that suddenly empties a collection · keep old versions ·
+  back up before any data move.
+- The hub checks nightly what it can read (its tables, your `akatsuki_*` view) and snapshots
+  it daily for 30 days. It never writes into your tables.
+- If the hub has no view of your storage — or you live in another Supabase project — publish
+  one `health.report` to `hub` per device per day, after your state has loaded. Idempotency
+  key `health-<device>-<YYYY-MM-DD>`. Payload `{build, device, checks:[{id, ok, n, prev, note}]}`.
+  Check at least: count per collection vs last good push, last successful pull, versions kept.
+- Codes: `AK401` shrink · `AK402` stuck pending · `AK403` backup stale · `AK404` your report
+  failed · `AK405` unchecked (no view, no report in 2 days) · `AK409` found by a code review.
+- `akatsuki-client.js` (R026): a handler that throws now defers (retried); return `{ reject: 'reason' }`
+  to reject for good. The outbox no longer loses publishes queued during a flush.
+- Card lines 12–13: **Health** and **Backup**.
 
 ## Dual session (v3.3) — an app in another Supabase project
 - The rule is "same Supabase user", not "same project". Keep your own project for your data; add a SECOND client for the hub, signed in to wylxvmkcrexwfpjpbhyy with the same account.
@@ -24,7 +47,7 @@ When the hub's copy has a newer version line, copy it again.
   validated against `akatsuki_vocab`).
 
 ## Joining — in this order, no code before step 1
-1. File the card (paste `card-request-prompt.md` into this app's chat, bring the answer to Akatsuki).
+1. File the card — 13 lines (paste `card-request-prompt.md` into this app's chat, bring the answer to Akatsuki).
 2. Akatsuki registers kinds in `akatsuki_vocab` and routes in `akatsuki_routes`.
 3. Akatsuki writes `<app>-adapter.js`; copy it in next to `akatsuki-client.js`.
 4. Sign in as the same Supabase user as the other apps.
@@ -89,13 +112,22 @@ When the hub's copy has a newer version line, copy it again.
 - Secrets live in Vault. A key shipped in a client bundle is flagged.
 
 ## Location
-- Apps read GPS; Akatsuki cannot. The detector is hub code: load `akatsuki-location.js`
+- **The hub records location (v3.6).** Akatsuki is an installed app and runs the detector
+  itself while open. Apps that need location **read** it: `hub.whereNow()` (where now, or
+  empty = unknown) and `hub.visits({ days })` (sessionized visits, no coordinates). Do not
+  add your own `watchPosition` for a hub feature.
+- An app may still capture (e.g. Cost while it is open): load `akatsuki-location.js`
   as shipped, never fork it. The app supplies callbacks only (`minutesFor(pin)`,
-  `enabledFor(pin)`); defaults are `defaultMinutes` / `unknown`.
+  `enabledFor(pin)`); defaults are `defaultMinutes` / `unknown`. Each install is its own
+  device, so the same stop can arrive from two devices; take the newest row.
 - Raw fixes never leave the device. Only visit events are published.
 - A heartbeat is a real change only when `last_seen_at` moved ≥ 2 min. Visits end at
   last seen, never at the time the app noticed.
-- Nothing is recorded while no connected app is open. Say this in every launch doc.
+- **Background (v3.7).** The phone's OwnTracks app reports to the hub in the background;
+  the hub's `akatsuki_ping()` turns reports into visits. Nothing is stored raw. You read the
+  same `whereNow()` / `visits()`; a visit's `source_app` says who saw it.
+- Nothing is recorded while neither Akatsuki nor a capturing app is open on screen (no
+  background GPS in a web app) — unless the phone agent is running. Say this in every launch doc.
 
 ## The same-origin trap
 Apps on different ports do not share localStorage. Supabase, signed in as the same user,

@@ -7,8 +7,8 @@ import { supabase } from './supabase.ts'
 import { dayKey, prevDayKey } from './dailyReset.ts'
 import * as sessionSync from '../store/studySessions.ts'
 import { activeRoleIds, effectiveRoleId } from '../store/selectors.ts'
-import { addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
-import type { AkBanner, Device, Energy, RmHubInstance, SuggestCtx, SuggestTask, WfAddr } from '../types.ts'
+import { addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, hubWhere, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
+import type { AkBanner, Device, Energy, PlaceSource, RmHubInstance, SuggestCtx, SuggestTask, WfAddr } from '../types.ts'
 import type { useStore } from '../store/useStore.ts'
 
 type Store = typeof useStore
@@ -19,6 +19,10 @@ const TICK_MS = 60_000
 const K_CHECKIN = 'rm-ak-checkin'
 const K_DEVICE = 'rm-ak-device'
 const K_PLACE = 'rm-ak-place'
+const K_PLACE_AT = 'rm-ak-place-at'
+const PICK_TTL = 2 * 3600_000          // R033 (a): a manual pick wins for 2 h
+const STALE_VISIT_MS = 30 * 60_000     // R033 (c): a visit that ended < 30 min ago
+const WHERE_MAX_AGE = 5 * 60_000       // a whereNow() read older than this (tab was hidden) is ignored
 const COLS = 'id, task, rm_task_id, title, level, ctx, tone_step, say, made_at, until, answer, reason, answer_app, answered_at, missed, done_at'
 
 export type SuggestionRow = {
@@ -84,22 +88,61 @@ export function readPlace(): string {
   if (id !== v) localStorage.setItem(K_PLACE, id)   // also clears a retired pick
   return id
 }
-export function savePlace(id: string) { localStorage.setItem(K_PLACE, id); bump(); void tick() }
+/** Picking 'anywhere' clears the override: the hub decides again. */
+export function savePlace(id: string) {
+  localStorage.setItem(K_PLACE, id)
+  if (id === 'anywhere') localStorage.removeItem(K_PLACE_AT)
+  else localStorage.setItem(K_PLACE_AT, String(Date.now()))
+  bump()
+  void tick()
+}
 export const placeClassOf = (id: string): string =>
   id === 'anywhere' ? 'anywhere' : hubPlaces().find((p) => p.id === id)?.class ?? 'anywhere'
+/** The manual pick, if made in the last 2 h; else null. Picks without a time (pre-R033) count as old. */
+export function pickedPlace(): string | null {
+  const id = readPlace()
+  if (id === 'anywhere') return null
+  const at = Number(localStorage.getItem(K_PLACE_AT) || 0)
+  return Date.now() - at < PICK_TTL ? id : null
+}
+
+// R033 · ctx.place, in order: (a) a fresh manual pick → (b) whereNow()[0] →
+// (c) the newest visit, if it ended < 30 min ago (stale) → (d) 'anywhere'.
+// Empty whereNow() means unknown, never "away".
+export type ResolvedPlace = { cls: string; label: string; src: PlaceSource; at: number | null }
+export function resolvePlace(): ResolvedPlace {
+  const pick = pickedPlace()
+  if (pick) {
+    const p = hubPlaces().find((x) => x.id === pick)
+    return { cls: p?.class ?? 'anywhere', label: p?.label ?? pick, src: 'pick', at: Number(localStorage.getItem(K_PLACE_AT)) }
+  }
+  const w = hubWhere()
+  const now = Date.now()
+  if (now - w.at < WHERE_MAX_AGE) {   // a read this old is no read: the tab was in the background
+    const r = w.now[0]   // newest first; two devices may report one stop — take the newest, no dedupe
+    if (r) return { cls: r.class, label: r.place_label ?? r.anchor_label ?? r.class, src: 'hub', at: Date.parse(r.last_seen_at) }
+    const v = w.visits[0]
+    const ended = v?.until ? Date.parse(v.until) : NaN
+    if (v && now - ended < STALE_VISIT_MS) return { cls: v.class, label: v.place_label ?? v.anchor_label ?? v.class, src: 'stale', at: ended }
+  }
+  return { cls: 'anywhere', label: 'anywhere', src: 'none', at: null }
+}
 
 function buildCtx(): SuggestCtx {
   const s = store!.getState()
   const d = new Date()
   const c = readCheckin()
+  const pl = resolvePlace()
   return {
     hour: d.getHours(),
     weekend: d.getDay() === 0 || d.getDay() === 6,
     energy: c?.energy ?? 'mid',
     mood: c?.mood ?? '',
     device: readDevice(),
-    place: placeClassOf(readPlace()),
+    place: pl.cls,
     activeRole: effectiveRoleId(activeRoleIds(s.now, s.settings?.role_overrides ?? {}), s.selectedRole),
+    place_src: pl.src,
+    place_age_min: pl.at == null ? null : Math.max(0, Math.round((d.getTime() - pl.at) / 60_000)),
   }
 }
 
