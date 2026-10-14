@@ -7,6 +7,7 @@ import { supabase } from './supabase.ts'
 import { dayKey, prevDayKey } from './dailyReset.ts'
 import * as sessionSync from '../store/studySessions.ts'
 import { activeRoleIds, effectiveRoleId } from '../store/selectors.ts'
+import { rotate, type Served } from './rotation.ts'
 import { addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
 import type { AkBanner, Device, Energy, RmHubInstance, SuggestCtx, SuggestTask, WfAddr } from '../types.ts'
 import type { useStore } from '../store/useStore.ts'
@@ -128,6 +129,23 @@ async function latestRow(): Promise<SuggestionRow | null> {
   if (error) throw error
   return data as SuggestionRow | null
 }
+// Fair-rotation input: when each WF item was last started or done.
+const SERVED_DAYS = 120
+async function servedHistory(): Promise<Served[]> {
+  const { data, error } = await supabase
+    .from('roadmap_suggestions')
+    .select('task, answered_at, done_at')
+    .or('answer.eq.start,done_at.not.is.null')
+    .gte('made_at', new Date(Date.now() - SERVED_DAYS * 86_400_000).toISOString())
+  if (error) throw error
+  const out: Served[] = []
+  for (const r of (data ?? []) as { task: WfAddr; answered_at: string | null; done_at: string | null }[]) {
+    const at = r.done_at ?? r.answered_at
+    if (at) out.push({ task: r.task, at })
+  }
+  return out
+}
+
 // Live = not missed, not done, unanswered or started, and `until` not passed.
 const isLive = (r: SuggestionRow, now: number) =>
   !r.missed && !r.done_at && (!r.answer || r.answer === 'start') && Date.parse(r.until) > now
@@ -154,7 +172,8 @@ export async function tick(): Promise<void> {
     const ctx = buildCtx()
     // Don't hand straight back the task that was just skipped or missed.
     const avoid = prev && (prev.missed || prev.answer === 'skip') ? addrKey(prev.task) : null
-    const t = window.RmHub.pick(candidates().filter((c) => addrKey(c.addr) !== avoid), ctx)
+    const pool = candidates().filter((c) => addrKey(c.addr) !== avoid)
+    const t = window.RmHub.pick(rotate(pool, ctx, await servedHistory(), window.RmHub.score), ctx)
     if (!t) {
       latest = null
       await hub.clearSuggestion()
