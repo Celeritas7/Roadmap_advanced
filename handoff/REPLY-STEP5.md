@@ -41,5 +41,8 @@ from roadmap_suggestions where ctx ? 'place_src' order by made_at desc limit 3;
 | 2 | — | — | — |
 | 3 | — | — | — |
 
+Will follow once this build has logged suggestions; query included above.
+
 ## 60 s poll
-Not measured in a live session yet. It's one small read per minute, only while the tab is visible, so I don't expect anyone to notice it. I'll confirm after real use.
+Not noticeable. Measured during the (c) test: the Home line went from "seen 15 min ago" to "seen 16 min ago" about a minute later with no reload, and there was no visible flicker or lag.
+Caveat: during (c) `last_seen_at` doesn't change, so that minute tick comes from Home's own 60 s re-render. It shows the line stays live and smooth, but on its own it doesn't prove a `whereNow()` read happened. The (c) line appearing at all, with no reload, does show the poll is running.
