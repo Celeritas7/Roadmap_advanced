@@ -245,6 +245,7 @@ export type HubWhereNow = {
 export type HubVisit = {
   since: string
   until: string | null          // null = still there
+  last_seen_at: string | null   // R034b
   end_reason: string | null
   place_id: string | null
   place_label: string | null

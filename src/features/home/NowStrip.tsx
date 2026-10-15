@@ -21,7 +21,7 @@ function placeNote(r: ResolvedPlace): string {
   const ago = r.at == null ? '' : `${Math.max(0, Math.round((Date.now() - r.at) / 60_000))} min ago`
   if (r.src === 'pick') return `${r.label} · you picked`
   if (r.src === 'hub') return `${r.label} · from hub, ${ago}`
-  if (r.src === 'stale') return r.open ? `${r.label} · since ${ago}, stale` : `${r.label} · left ${ago}, stale`
+  if (r.src === 'stale') return `${r.label} · seen ${ago}`
   return 'unknown · no recent location'
 }
 

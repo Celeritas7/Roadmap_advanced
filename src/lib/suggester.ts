@@ -109,8 +109,9 @@ export function pickedPlace(): string | null {
 }
 
 // R033 · ctx.place, in order: (a) a fresh manual pick → (b) whereNow()[0] →
-// (c) the newest visit, stale: ended < 30 min ago, or still open (until null,
-// aged from since) → (d) 'anywhere'. Empty whereNow() means unknown, never "away".
+// (c) the newest visit, stale, aged from last_seen_at ?? until ?? since and used
+// if < 30 min, open or closed alike → (d) 'anywhere'.
+// Empty whereNow() means unknown, never "away".
 // `open` = (c) on a visit with no until.
 export type ResolvedPlace = { cls: string; label: string; src: PlaceSource; at: number | null; open?: boolean }
 export function resolvePlace(): ResolvedPlace {
@@ -128,10 +129,8 @@ export function resolvePlace(): ResolvedPlace {
     if (r) return { cls: r.class, label: r.place_label ?? r.anchor_label ?? r.class, src: 'hub', at: Date.parse(r.last_seen_at) }
     const v = w.visits[0]
     if (v) {
-      const label = v.place_label ?? v.anchor_label ?? v.class
-      if (!v.until) return { cls: v.class, label, src: 'stale', at: Date.parse(v.since), open: true }
-      const ended = Date.parse(v.until)
-      if (now - ended < STALE_VISIT_MS) return { cls: v.class, label, src: 'stale', at: ended }
+      const at = Date.parse(v.last_seen_at ?? v.until ?? v.since)
+      if (now - at < STALE_VISIT_MS) return { cls: v.class, label: v.place_label ?? v.anchor_label ?? v.class, src: 'stale', at, open: !v.until }
     }
   }
   return { cls: 'anywhere', label: 'anywhere', src: 'none', at: null }
