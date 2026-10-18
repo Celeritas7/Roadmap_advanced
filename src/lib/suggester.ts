@@ -8,8 +8,9 @@ import { dayKey, prevDayKey } from './dailyReset.ts'
 import * as sessionSync from '../store/studySessions.ts'
 import { activeRoleIds, effectiveRoleId } from '../store/selectors.ts'
 import { categoryOf, lockedSlots, rotate, type Served } from './rotation.ts'
-import { addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, hubWhere, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
-import type { AkBanner, Device, Energy, PlaceSource, RmHubInstance, SuggestCtx, SuggestTask, WfAddr } from '../types.ts'
+import { MIRROR_TAG, PARKED_TAG, addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, hubWhere, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
+import { PROJECT_BY_ID } from '../seed.ts'
+import type { AkBanner, Device, Energy, PlaceSource, RmHubInstance, SuggestCtx, SuggestTask, TaskRow, WfAddr } from '../types.ts'
 import type { useStore } from '../store/useStore.ts'
 
 type Store = typeof useStore
@@ -179,6 +180,41 @@ function buildCtx(): SuggestCtx {
   }
 }
 
+// Roadmap's own tasks (not WF mirrors) ride the same engine under a local
+// address: board 'rm', item_key '<project>:<parent id>' (category : slot),
+// sub_id = the task id. They are never published to the hub — the hub's
+// suggestion and done replies belong to WF addresses — so they show in
+// Roadmap only (NowStrip), and a done is Roadmap's own tick.
+export const NATIVE_BOARD = 'rm'
+export const isNative = (a: WfAddr) => a.board_id === NATIVE_BOARD
+const PLACE_OF_TAG: Record<string, string> = { home: 'home', office: 'office', train: 'transit', transit: 'transit', cafe: 'cafe', outside: 'out', out: 'out' }
+
+function nativeCandidates(tree: TaskRow[]): SuggestTask[] {
+  const byId = new Map(tree.map((t) => [t.id, t]))
+  const projectOf = (r: TaskRow): string | null => {
+    for (let x: TaskRow | undefined = r; x; x = x.parent_id ? byId.get(x.parent_id) : undefined) {
+      const p = x.tags.find((t) => PROJECT_BY_ID[t])
+      if (p) return p
+    }
+    return null
+  }
+  const out: SuggestTask[] = []
+  for (const r of tree) {
+    if (r.kind !== 'task' || r.tags.includes(MIRROR_TAG) || hubAddrOf(r.id)) continue
+    const project = projectOf(r)
+    out.push({
+      addr: { board_id: NATIVE_BOARD, item_key: `${project ?? 'rm'}:${r.parent_id ?? 'root'}`, sub_id: r.id },
+      rmId: r.id, title: r.title, done: r.done,
+      parked: r.tags.includes(PARKED_TAG), deleted: false,
+      ctx: r.tags.map((t) => '@' + t),
+      effort: r.tags.includes('short-burst') ? 'quick' : r.tags.includes('deep-focus') ? 'deep' : 'medium',
+      place_class: r.tags.map((t) => PLACE_OF_TAG[t]).find(Boolean) ?? null,
+      level: project ? levelOfProject(project) : null,
+    })
+  }
+  return out
+}
+
 function candidates(): SuggestTask[] {
   const tree = store!.getState().tree
   const out: SuggestTask[] = []
@@ -195,7 +231,7 @@ function candidates(): SuggestTask[] {
       level: r.level ?? levelOfProject(projectOfRow(row, addr)),
     })
   }
-  return out
+  return [...out, ...nativeCandidates(tree)]
 }
 
 // Everything doable here and now, best first: the rotation's slot, then tasks
@@ -247,6 +283,11 @@ async function servedHistory(): Promise<Served[]> {
 // Live = not missed, not done, unanswered or started, and `until` not passed.
 const isLive = (r: SuggestionRow, now: number) =>
   !r.missed && !r.done_at && (!r.answer || r.answer === 'start') && Date.parse(r.until) > now
+
+/** The live suggestion when it is one of Roadmap's own tasks — the banner can't show those. */
+export function nativeSuggestion(): SuggestionRow | null {
+  return latest && isLive(latest, Date.now()) && isNative(latest.task) ? latest : null
+}
 
 export function openSuggestionFor(key: string): string | null {
   return latest && isLive(latest, Date.now()) && addrKey(latest.task) === key ? latest.id : null
@@ -312,7 +353,8 @@ export async function tick(): Promise<void> {
       .single()
     if (error) throw error
     latest = data as SuggestionRow
-    await hub.suggest({ id, task: t.addr, title: t.title, level: t.level ?? null, say, toneStep: step, until })
+    if (isNative(t.addr)) await hub.clearSuggestion()   // Roadmap-only: other apps must not show a stale WF one
+    else await hub.suggest({ id, task: t.addr, title: t.title, level: t.level ?? null, say, toneStep: step, until })
     await banner?.refresh()
   } catch (e) {
     const err = e as { code?: string; message?: string }
@@ -350,7 +392,7 @@ export async function onAnswer(p: Record<string, unknown>, fromApp: string, seq:
   if (ue) throw ue
 
   const h = hub ?? hubInstance()   // any tab can publish; only the leader runs the loop
-  if (action === 'skip' && reason && h) await h.skip(row.task, reason, sid)
+  if (action === 'skip' && reason && h && !isNative(row.task)) await h.skip(row.task, reason, sid)
   if (action === 'start' && row.rm_task_id) await sessionSync.startSession(row.rm_task_id)
   if (action !== 'start') void tick()
 }

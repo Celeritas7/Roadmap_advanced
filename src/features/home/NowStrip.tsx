@@ -6,7 +6,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import {
-  clearCheckin, doableNow, needsCheckin, pickedPlace, readCheckin, readDevice, readStuck, resolvePlace, reviewDue,
+  clearCheckin, doableNow, nativeSuggestion, needsCheckin, onAnswer, pickedPlace, tick, readCheckin, readDevice, readStuck, resolvePlace, reviewDue,
   saveCheckin, saveDevice, savePlace, saveStuck, weekReview, weekStart, type ResolvedPlace, type WeekReview,
 } from '../../lib/suggester.ts'
 import { addrKey, correctTag, hubInstance, hubPlaces, hubTags, tagAddr } from '../../lib/rmHub.ts'
@@ -29,6 +29,7 @@ function placeNote(r: ResolvedPlace): string {
 export function NowStrip() {
   const hubState = useStore((s) => s.hubState)
   useStore((s) => s.hubRev) // re-render on hub / context changes
+  const resources = useStore((s) => s.resources)
   const [, force] = useState(0)
   useEffect(() => {
     const t = window.setInterval(() => force((n) => n + 1), 60_000)
@@ -47,6 +48,9 @@ export function NowStrip() {
   const stuck = readStuck()
   const left = stuck ? Math.max(1, Math.round((stuck.until - Date.now()) / 60_000)) : 0
   const doable = doableNow()
+  const native = nativeSuggestion()
+  const answer = (action: 'start' | 'skip') =>
+    void onAnswer({ suggestion_id: native!.id, action, reason: action === 'skip' ? 'skipped in Roadmap' : undefined, at: new Date().toISOString() }, 'roadmap', null).then(() => tick())
 
   const cur = window.rm?.banner.current() ?? null
   const live = cur && Date.parse(cur.until) > Date.now() ? cur : null
@@ -108,6 +112,20 @@ export function NowStrip() {
         <span className="ns-note">{placeNote(where)}</span>
       </div>
 
+      {native && (
+        <div className="ns-row">
+          <span className="ns-k">Now</span>
+          <span className="ns-say">{native.say}</span>
+          {native.answer !== 'start' && (
+            <>
+              <button type="button" className="ns-chip" onClick={() => answer('start')}>Start</button>
+              <button type="button" className="ns-chip" onClick={() => answer('skip')}>Skip</button>
+            </>
+          )}
+          <span className="ns-note">{native.answer === 'start' ? 'started · tick it in the tree when done' : 'a Roadmap task'}</span>
+        </div>
+      )}
+
       <div className="ns-row">
         <span className="ns-k">Stuck for</span>
         <div className="ns-seg" role="radiogroup" aria-label="Spare time">
@@ -126,7 +144,12 @@ export function NowStrip() {
           <ul className="ns-list">
             {doable.map((t) => (
               <li key={addrKey(t.addr)}>
-                <span>{t.title}</span>
+                <span>
+                  {t.title}
+                  {resources.filter((r) => r.task_id === t.rmId).map((r) => (
+                    <a key={r.id} className="ns-link" href={r.url} target="_blank" rel="noreferrer">{r.label}</a>
+                  ))}
+                </span>
                 <em>{t.effort ?? 'medium'}{live && addrKey(live.task) === addrKey(t.addr) ? ' · suggested' : ''}</em>
               </li>
             ))}

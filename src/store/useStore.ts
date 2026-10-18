@@ -27,6 +27,7 @@ import * as sessionSync from './studySessions.ts'
 import { isDaily, dayKey, prevDayKey } from '../lib/dailyReset.ts'
 import { readStoredRoadView, storeRoadView, type RoadViewId } from '../features/home/roadViews.ts'
 import { hubAddrOf, tickMirror } from '../lib/rmHub.ts'
+import { markDone } from '../lib/suggester.ts'
 
 export type ThemeName = 'trailhead' | 'summit' | 'fieldguide'
 
@@ -214,6 +215,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const row = await sync.updateTask(id, patch)
       set({ tree: get().tree.map((t) => (t.id === id ? row : t)) })
+      if (done) void markDone(id, null)   // closes a live suggestion for this task, if any
       // Ticking the box by hand is a real completion — it just isn't a
       // PROVEN one, so it lands as verification='manual'. If a study app
       // already reported this stop today, the RPC would overwrite that
