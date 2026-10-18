@@ -1,15 +1,16 @@
-import { useStore } from '../../store/useStore.ts'
+// V2-V — the three directions, moved out of the header (ThemeSwitcher.tsx)
+// into Settings · Appearance.
 import type { ThemeName } from '../../store/useStore.ts'
 
-type Option = { id: ThemeName; label: string }
+export type ThemeOption = { id: ThemeName; label: string; note: string }
 
-const OPTIONS: Option[] = [
-  { id: 'trailhead', label: 'Trailhead — light' },
-  { id: 'summit', label: 'Summit — dark' },
-  { id: 'fieldguide', label: 'Field Guide — editorial' },
+export const THEME_OPTIONS: ThemeOption[] = [
+  { id: 'trailhead', label: 'Trailhead', note: 'Light' },
+  { id: 'summit', label: 'Summit', note: 'Dark' },
+  { id: 'fieldguide', label: 'Field Guide', note: 'Editorial' },
 ]
 
-function Icon({ id }: { id: ThemeName }) {
+export function ThemeIcon({ id }: { id: ThemeName }) {
   // stroke=currentColor → inherits the button's color (ink-3, or accent when active)
   const common = {
     viewBox: '0 0 24 24',
@@ -37,26 +38,5 @@ function Icon({ id }: { id: ThemeName }) {
       <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v15H5.5A1.5 1.5 0 0 0 4 20.5z" />
       <path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v15h5.5a1.5 1.5 0 0 1 1.5 1.5z" />
     </svg>
-  )
-}
-
-export function ThemeSwitcher() {
-  const theme = useStore((s) => s.theme)
-  const setTheme = useStore((s) => s.setTheme)
-  return (
-    <div className="rm-theme-switch" role="group" aria-label="Theme">
-      {OPTIONS.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          className={`rm-theme-btn${theme === o.id ? ' active' : ''}`}
-          aria-pressed={theme === o.id}
-          title={o.label}
-          onClick={() => setTheme(o.id)}
-        >
-          <Icon id={o.id} />
-        </button>
-      ))}
-    </div>
   )
 }

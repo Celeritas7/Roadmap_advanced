@@ -106,6 +106,13 @@ export type UserSettings = {
   updated_at: string
 }
 
+// ─── DB rows: roadmap_role_locations (0004; location_id = akatsuki_places.id since 0007) ──
+
+export type RoleLocationRow = {
+  role_id: string
+  location_id: string
+}
+
 // ─── In-code constants (mirrored in seed.ts; never persisted to DB) ───
 
 export type Role = {

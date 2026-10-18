@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useStore } from '../../store/useStore.ts'
 import type { TaskRow as TaskRowType } from '../../types.ts'
 import { PROJECT_BY_ID, CONTEXT_BY_ID } from '../../seed.ts'
+import { MIRROR_TAG } from '../../lib/rmHub.ts'
 
 type Props = {
   task: TaskRowType
@@ -44,7 +45,10 @@ export function TaskRow({ task, dim }: Props) {
   // V2-D: a mirror whose Weekly Focus task was deleted or parked keeps its
   // link row and gains the wf-orphan tag. Mute the row rather than hide it —
   // the task may still be worth doing; it just no longer has a WF owner.
-  const rowClass = 'row' + (task.done ? ' done' : '') + (isDragging ? ' dragging' : '') + (task.tags.includes('wf-orphan') ? ' wf-orphan' : '')
+  // V2-V: WF titles are long real titles (STEP6) — clamped to 2 lines (CSS),
+  // the full title on hover and in the rename input.
+  const isWf = task.tags.includes(MIRROR_TAG)
+  const rowClass = 'row' + (task.done ? ' done' : '') + (isDragging ? ' dragging' : '') + (task.tags.includes('wf-orphan') ? ' wf-orphan' : '') + (isWf ? ' wf' : '')
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -99,7 +103,7 @@ export function TaskRow({ task, dim }: Props) {
             onBlur={cancelEdit}
           />
         ) : (
-          <span className="title-c" onDoubleClick={startEdit} title="Double-click to rename">
+          <span className="title-c" onDoubleClick={startEdit} title={isWf ? task.title : 'Double-click to rename'}>
             {task.title}
           </span>
         )}
