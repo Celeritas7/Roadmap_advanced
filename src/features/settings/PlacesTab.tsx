@@ -185,8 +185,8 @@ export function PlacesTab({ draft }: { draft: PlacesDraft }) {
       <p className="st-note">
         <b>Class</b> is what the suggester matches on — a task tagged for <i>transit</i> fits any transit place.{' '}
         <b>Roles here</b> will be set per role in Roles &amp; tiers. Retiring hides a place from every app's pickers; old
-        tasks still resolve and its role links are kept. Retired places can't be restored from here yet. The pin sets a
-        place from your current location once GPS lands.
+        tasks still resolve and its role links are kept. Retired places can't be restored from here yet. To name a spot
+        from where you are, use Akatsuki's 📍 Name this spot.
       </p>
     </>
   )
@@ -247,12 +247,6 @@ function LiveRow({ place, label, cls, classes, roleLocs, retiring, blank, select
       <Aliases place={place} />
       <RolesHere placeId={place.id} roleLocs={roleLocs} />
       <span className="w-act">
-        <button type="button" className="st-gps" disabled title="Set from current location — arrives with GPS (R018)">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 9.8 8 14 8 14Z" />
-            <circle cx="8" cy="6.5" r="1.6" />
-          </svg>
-        </button>
         {retiring ? (
           <button type="button" className="st-undo" onClick={onRetire} title="Keep this place">Undo</button>
         ) : (

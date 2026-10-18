@@ -1395,9 +1395,7 @@ body {
 .rm .st-roles, .rm .w-roles { width: 104px; flex: none; display: flex; gap: 3px; }
 .rm .st-rl { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; padding: 2px 5px; border-radius: 4px; color: var(--ink-4); border: 1px solid var(--rule); }
 .rm .st-rl.on { color: var(--ink); border-color: var(--rule-strong); background: var(--panel); }
-.rm .w-act { width: 64px; flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
-.rm .st-gps { width: 26px; height: 26px; display: grid; place-items: center; border: 1px dashed var(--rule-strong); border-radius: 6px; background: none; color: var(--ink-4); cursor: not-allowed; }
-.rm .st-gps svg { width: 13px; height: 13px; }
+.rm .w-act { width: 40px; flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .rm .st-x { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--ink-4); cursor: pointer; font-size: 13px; }
 .rm .st-row:hover .st-x { border-color: var(--rule-strong); color: var(--ink-2); }
 .rm .st-x:hover { color: #a3222b; background: rgba(200,40,50,.07); border-color: rgba(200,40,50,.25); }
