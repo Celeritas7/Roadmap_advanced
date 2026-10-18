@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase.ts'
 import type {
   LogInsert,
   LogRow,
+  RoleLocationRow,
   TaskInsert,
   TaskRow,
   TaskUpdate,
@@ -122,4 +123,16 @@ export async function upsertSettings(
     .single()
   if (error) throw error
   return data as UserSettings
+}
+
+// ─── role locations (read-only until Roles & tiers ships) ─────────────
+// Settings · Places shows "roles here" from this. Retired places keep their
+// rows (STEP6 REPLY3 §2), so this is never filtered by the hub's live list.
+
+export async function fetchRoleLocations(): Promise<RoleLocationRow[]> {
+  const { data, error } = await supabase
+    .from('roadmap_role_locations')
+    .select('role_id, location_id')
+  if (error) throw error
+  return (data ?? []) as RoleLocationRow[]
 }

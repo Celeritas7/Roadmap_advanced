@@ -106,6 +106,13 @@ export type UserSettings = {
   updated_at: string
 }
 
+// ─── DB rows: roadmap_role_locations (0004; location_id = akatsuki_places.id since 0007) ──
+
+export type RoleLocationRow = {
+  role_id: string
+  location_id: string
+}
+
 // ─── In-code constants (mirrored in seed.ts; never persisted to DB) ───
 
 export type Role = {
@@ -231,6 +238,29 @@ export type HubPlace = {
   seq?: number
 }
 
+// R033: the hub's location reads. Visits only, never coordinates.
+// class is vocab place_class; place_id null = unnamed spot (anchor_label may name it).
+export type HubWhereNow = {
+  device: string
+  since: string
+  last_seen_at: string
+  place_id: string | null
+  place_label: string | null
+  anchor_label: string | null
+  class: string
+}
+export type HubVisit = {
+  since: string
+  until: string | null          // null = still there
+  last_seen_at: string | null   // R034b
+  end_reason: string | null
+  place_id: string | null
+  place_label: string | null
+  anchor_label: string | null
+  class: string
+  source_app: string | null
+}
+
 export type HubVocab = {
   enum: Record<string, string[]>
   context: Array<{ id: string; label?: string; ord?: number; family?: string; alias_of?: string; [k: string]: unknown }>
@@ -259,7 +289,11 @@ export type SuggestCtx = {
   device: Device
   place: string
   activeRole: string | null
+  place_src?: PlaceSource       // R033: logged with the suggestion, not used by score()
+  place_age_min?: number | null
 }
+
+export type PlaceSource = 'pick' | 'hub' | 'stale' | 'none'
 
 export type SuggestTask = {
   addr: WfAddr
@@ -288,6 +322,8 @@ export type RmHubInstance = {
     addPlace(label: string, cls?: string): Promise<{ id: string; label: string; class: string; status: 'created' | 'exists' }>
     editPlace(id: string, patch: { label?: string; class?: string; ord?: number; aliases?: string[] }): Promise<unknown>
     retirePlace(id: string): Promise<unknown>
+    whereNow(): Promise<HubWhereNow[]>
+    visits(o?: { days?: number }): Promise<HubVisit[]>
   }
   loadVocab(): Promise<HubVocab>
   vocab(): HubVocab | null

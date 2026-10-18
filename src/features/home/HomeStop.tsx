@@ -13,6 +13,7 @@ import type { TaskRow } from '../../types.ts'
 import { LaunchPopover } from '../plan/LaunchPopover.tsx'
 import { isCooled, isDaily, untilResetLabel } from '../../lib/dailyReset.ts'
 import { derivedStreak, trustToday, verifiedShare } from '../../lib/sessions.ts'
+import { MIRROR_TAG } from '../../lib/rmHub.ts'
 
 type Props = {
   task: TaskRow
@@ -44,7 +45,8 @@ export function HomeStop({ task, dx, beyond, here }: Props) {
 
   const projId = task.tags.find((t) => t in PROJECT_BY_ID)
   const proj = projId ? PROJECT_BY_ID[projId] : null
-  const cls = 'row' + (task.done ? ' done' : '') + (beyond ? ' beyond' : '')
+  const isWf = task.tags.includes(MIRROR_TAG)
+  const cls = 'row' + (task.done ? ' done' : '') + (beyond ? ' beyond' : '') + (isWf ? ' wf' : '')
   const shift = { transform: `translateX(${dx.toFixed(1)}px)` }
 
   const streakTitle =
@@ -70,7 +72,7 @@ export function HomeStop({ task, dx, beyond, here }: Props) {
         />
       </div>
       <div className="body" style={shift}>
-        <span className="title-c">{task.title}</span>
+        <span className="title-c" title={isWf ? task.title : undefined}>{task.title}</span>
         {streak > 0 && (
           <span
             className={'streak' + (share.verified === share.total ? ' allverified' : '')}

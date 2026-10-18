@@ -6,8 +6,8 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import {
-  clearCheckin, doableNow, needsCheckin, readCheckin, readDevice, readPlace, readStuck, reviewDue,
-  saveCheckin, saveDevice, savePlace, saveStuck, weekReview, weekStart, type WeekReview,
+  clearCheckin, doableNow, needsCheckin, pickedPlace, readCheckin, readDevice, readStuck, resolvePlace, reviewDue,
+  saveCheckin, saveDevice, savePlace, saveStuck, weekReview, weekStart, type ResolvedPlace, type WeekReview,
 } from '../../lib/suggester.ts'
 import { addrKey, correctTag, hubInstance, hubPlaces, hubTags, tagAddr } from '../../lib/rmHub.ts'
 import type { Device, Energy } from '../../types.ts'
@@ -16,6 +16,15 @@ const ENERGY: Energy[] = ['high', 'mid', 'low']
 const DEVICES: Device[] = ['phone', 'laptop', 'either']
 const FALLBACK_MOOD = ['down', 'even', 'up']
 const STUCK_MIN = [10, 20, 45, 90]
+
+// R033: say where ctx.place came from. Unknown stays unknown — never a place.
+function placeNote(r: ResolvedPlace): string {
+  const ago = r.at == null ? '' : `${Math.max(0, Math.round((Date.now() - r.at) / 60_000))} min ago`
+  if (r.src === 'pick') return `${r.label} · you picked`
+  if (r.src === 'hub') return `${r.label} · from hub, ${ago}`
+  if (r.src === 'stale') return `${r.label} · seen ${ago}`
+  return 'unknown · no recent location'
+}
 
 export function NowStrip() {
   const hubState = useStore((s) => s.hubState)
@@ -33,7 +42,8 @@ export function NowStrip() {
   const places = hubPlaces()
   const checkin = readCheckin()
   const device = readDevice()
-  const place = readPlace()
+  const pick = pickedPlace()
+  const where = resolvePlace()
   const stuck = readStuck()
   const left = stuck ? Math.max(1, Math.round((stuck.until - Date.now()) / 60_000)) : 0
   const doable = doableNow()
@@ -90,10 +100,12 @@ export function NowStrip() {
           ))}
         </div>
         <span className="ns-k">At</span>
-        <select className="ns-sel" value={place} onChange={(e) => savePlace(e.target.value)} aria-label="Place">
+        <select className="ns-sel" value={pick ?? 'auto'} onChange={(e) => savePlace(e.target.value)} aria-label="Place">
+          <option value="auto">auto (hub)</option>
           <option value="anywhere">anywhere</option>
           {places.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
+        <span className="ns-note">{placeNote(where)}</span>
       </div>
 
       <div className="ns-row">
@@ -110,7 +122,7 @@ export function NowStrip() {
 
       {doable.length > 0 && (
         <div className="ns-doable">
-          <span className="ns-k">Doable here{stuck ? ` · within ${left} min` : ''}</span>
+          <span className="ns-k">{where.src === 'none' ? 'Doable now' : `Doable at ${where.label}`}{stuck ? ` · within ${left} min` : ''}</span>
           <ul className="ns-list">
             {doable.map((t) => (
               <li key={addrKey(t.addr)}>

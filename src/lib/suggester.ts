@@ -8,8 +8,8 @@ import { dayKey, prevDayKey } from './dailyReset.ts'
 import * as sessionSync from '../store/studySessions.ts'
 import { activeRoleIds, effectiveRoleId } from '../store/selectors.ts'
 import { categoryOf, lockedSlots, rotate, type Served } from './rotation.ts'
-import { addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
-import type { AkBanner, Device, Energy, RmHubInstance, SuggestCtx, SuggestTask, WfAddr } from '../types.ts'
+import { addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, hubWhere, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
+import type { AkBanner, Device, Energy, PlaceSource, RmHubInstance, SuggestCtx, SuggestTask, WfAddr } from '../types.ts'
 import type { useStore } from '../store/useStore.ts'
 
 type Store = typeof useStore
@@ -20,6 +20,10 @@ const TICK_MS = 60_000
 const K_CHECKIN = 'rm-ak-checkin'
 const K_DEVICE = 'rm-ak-device'
 const K_PLACE = 'rm-ak-place'
+const K_PLACE_AT = 'rm-ak-place-at'
+const PICK_TTL = 2 * 3600_000          // R033 (a): a manual pick wins for 2 h
+const STALE_VISIT_MS = 30 * 60_000     // R033 (c): a visit that ended < 30 min ago
+const WHERE_MAX_AGE = 5 * 60_000       // a whereNow() read older than this (tab was hidden) is ignored
 const K_STUCK = 'rm-ak-stuck'
 const COLS = 'id, task, rm_task_id, title, level, ctx, tone_step, say, made_at, until, answer, reason, answer_app, answered_at, missed, done_at'
 
@@ -81,15 +85,59 @@ export function saveDevice(d: Device) { localStorage.setItem(K_DEVICE, d); bump(
 export function readPlace(): string {
   const v = localStorage.getItem(K_PLACE) || 'anywhere'
   const list = hubPlaces()
-  if (v === 'anywhere' || !list.length) return v   // places not loaded yet: keep the pick
+  if (v === 'anywhere' || v === 'auto' || !list.length) return v   // places not loaded yet: keep the pick
   const hit = list.find((p) => p.id === v) ?? hubInstance()?.hub.matchPlace(list, v) ?? list.find((p) => p.class === v)
   const id = hit ? hit.id : 'anywhere'
   if (id !== v) localStorage.setItem(K_PLACE, id)   // also clears a retired pick
   return id
 }
-export function savePlace(id: string) { localStorage.setItem(K_PLACE, id); bump(); void tick() }
-export const placeClassOf = (id: string): string =>
-  id === 'anywhere' ? 'anywhere' : hubPlaces().find((p) => p.id === id)?.class ?? 'anywhere'
+/** 'auto' clears the override (the hub decides again). Anything else, 'anywhere' included, is a timed pick. */
+export function savePlace(id: string) {
+  if (id === 'auto') {
+    localStorage.removeItem(K_PLACE)
+    localStorage.removeItem(K_PLACE_AT)
+  } else {
+    localStorage.setItem(K_PLACE, id)
+    localStorage.setItem(K_PLACE_AT, String(Date.now()))
+  }
+  bump()
+  void tick()
+}
+/** The manual pick ('anywhere' or a place id), if made in the last 2 h; else null. Picks without a time (pre-R033) count as old. */
+export function pickedPlace(): string | null {
+  const id = readPlace()
+  if (id === 'auto') return null
+  const at = Number(localStorage.getItem(K_PLACE_AT) || 0)
+  return Date.now() - at < PICK_TTL ? id : null
+}
+
+// R033 · ctx.place, in order: (a) a fresh manual pick → (b) whereNow()[0] →
+// (c) the newest visit, stale, aged from last_seen_at ?? until ?? since and used
+// if < 30 min, open or closed alike → (d) 'anywhere'.
+// Empty whereNow() means unknown, never "away".
+// `open` = (c) on a visit with no until.
+export type ResolvedPlace = { cls: string; label: string; src: PlaceSource; at: number | null; open?: boolean }
+export function resolvePlace(): ResolvedPlace {
+  const pick = pickedPlace()
+  if (pick) {
+    const at = Number(localStorage.getItem(K_PLACE_AT))
+    if (pick === 'anywhere') return { cls: 'anywhere', label: 'anywhere', src: 'pick', at }
+    const p = hubPlaces().find((x) => x.id === pick)
+    return { cls: p?.class ?? 'anywhere', label: p?.label ?? pick, src: 'pick', at }
+  }
+  const w = hubWhere()
+  const now = Date.now()
+  if (now - w.at < WHERE_MAX_AGE) {   // a read this old is no read: the tab was in the background
+    const r = w.now[0]   // newest first; two devices may report one stop — take the newest, no dedupe
+    if (r) return { cls: r.class, label: r.place_label ?? r.anchor_label ?? r.class, src: 'hub', at: Date.parse(r.last_seen_at) }
+    const v = w.visits[0]
+    if (v) {
+      const at = Date.parse(v.last_seen_at ?? v.until ?? v.since)
+      if (now - at < STALE_VISIT_MS) return { cls: v.class, label: v.place_label ?? v.anchor_label ?? v.class, src: 'stale', at, open: !v.until }
+    }
+  }
+  return { cls: 'anywhere', label: 'anywhere', src: 'none', at: null }
+}
 
 // Stuck / delayed / travelling: a fixed window of spare time. While it runs,
 // only tasks whose effort fits the minutes left are offered, and any of them —
@@ -117,14 +165,17 @@ function buildCtx(): SuggestCtx {
   const s = store!.getState()
   const d = new Date()
   const c = readCheckin()
+  const pl = resolvePlace()
   return {
     hour: d.getHours(),
     weekend: d.getDay() === 0 || d.getDay() === 6,
     energy: c?.energy ?? 'mid',
     mood: c?.mood ?? '',
     device: readDevice(),
-    place: placeClassOf(readPlace()),
+    place: pl.cls,
     activeRole: effectiveRoleId(activeRoleIds(s.now, s.settings?.role_overrides ?? {}), s.selectedRole),
+    place_src: pl.src,
+    place_age_min: pl.at == null ? null : Math.max(0, Math.round((d.getTime() - pl.at) / 60_000)),
   }
 }
 
@@ -211,21 +262,25 @@ export async function tick(): Promise<void> {
     const now = Date.now()
     let prev = await latestRow()
     if (prev && isLive(prev, now)) {
-      // A stuck window opened after this suggestion and it doesn't fit the
-      // time left: replace it. Not a miss, so the tone doesn't rise.
+      // An unanswered suggestion that no longer fits — you moved (hub place or
+      // pick changed) and it can't be done here, or a stuck window opened after
+      // it and the time left is too short — is replaced. Not a miss, so the
+      // tone doesn't rise.
       const stuck = readStuck()
-      const cur = stuck && !prev.answer && Date.parse(prev.made_at) < stuck.since
-        ? candidates().find((c) => addrKey(c.addr) === addrKey(prev!.task))
-        : undefined
-      if (!cur || fits(cur, stuck)) { latest = prev; return }
+      const cur = !prev.answer ? candidates().find((c) => addrKey(c.addr) === addrKey(prev!.task)) : undefined
+      const reason = !cur || cur.done ? null
+        : window.RmHub.score(cur, buildCtx()) === -Infinity ? 'not doable here'
+        : stuck && Date.parse(prev.made_at) < stuck.since && !fits(cur, stuck) ? 'not enough time'
+        : null
+      if (!reason) { latest = prev; return }
       const answeredAt = new Date().toISOString()
       const { error } = await supabase
         .from('roadmap_suggestions')
-        .update({ answer: 'skip', reason: 'not enough time', answered_at: answeredAt, missed: false })
+        .update({ answer: 'skip', reason, answered_at: answeredAt, missed: false })
         .eq('id', prev.id)
         .is('answered_at', null)
       if (error) throw error
-      prev = { ...prev, answer: 'skip', reason: 'not enough time', answered_at: answeredAt, missed: false }
+      prev = { ...prev, answer: 'skip', reason, answered_at: answeredAt, missed: false }
     }
     if (prev && !prev.answer && !prev.done_at && prev.missed == null) {
       // `until` passed with no answer → a miss.

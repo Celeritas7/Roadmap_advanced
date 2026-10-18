@@ -9,7 +9,7 @@ import { dayKey } from './dailyReset.ts'
 import { PROJECT_BY_ID, applyVocabContexts } from '../seed.ts'
 import * as sync from '../store/sync.ts'
 import * as suggester from './suggester.ts'
-import type { HubPlace, HubReplyRow, HubTagRow, RmHubInstance, TaskRow, TaskUpdate, WfAddr } from '../types.ts'
+import type { HubPlace, HubReplyRow, HubTagRow, HubVisit, HubWhereNow, RmHubInstance, TaskRow, TaskUpdate, WfAddr } from '../types.ts'
 import type { useStore } from '../store/useStore.ts'
 
 type Store = typeof useStore
@@ -51,6 +51,26 @@ export async function refreshPlaces(): Promise<HubPlace[]> {
     console.warn('[ak] places', (e as { code?: string }).code, (e as Error).message)   // keep the last list
   }
   return placeRows
+}
+// R033: where the user is, read from the hub (never GPS here). Polled every
+// 60 s while Roadmap is in the foreground; nothing in the background, no
+// realtime channel. visits() is only needed when whereNow() is empty (STEP5 c).
+const WHERE_POLL_MS = 60_000
+let whereRows: HubWhereNow[] = []
+let visitRows: HubVisit[] = []
+let whereAt = 0
+export const hubWhere = () => ({ now: whereRows, visits: visitRows, at: whereAt })
+export async function refreshWhere(): Promise<void> {
+  if (!hub || document.hidden) return
+  try {
+    const now = await hub.hub.whereNow()
+    visitRows = now.length ? [] : await hub.hub.visits({ days: 1 })
+    whereRows = now
+    whereAt = Date.now()
+    store?.setState({ hubRev: get().hubRev + 1 })
+  } catch (e) {
+    console.warn('[ak] where', (e as { code?: string }).code, (e as Error).message)   // keep the last read; it ages out
+  }
 }
 // akatsuki_task_tags may carry the address as `addr` (jsonb), as three columns,
 // or only as `addr_key` "board/item_key/sub". item_key itself may contain '/'
@@ -327,6 +347,7 @@ export function bootHub(s: Store): Promise<void> {
     const vocab = await hub.loadVocab()
     applyVocabContexts(vocab.context)
     await refreshPlaces()
+    await refreshWhere()
     for (const l of await hub.links()) if (l.rmId) remember(l.wf, l.rmId)
     tagRows = await hub.tags()
     await writeGuesses()
@@ -341,7 +362,8 @@ export function bootHub(s: Store): Promise<void> {
     })
     void pollReplies()
     window.setInterval(() => { if (Object.keys(readPending()).length) void pollReplies() }, 15_000)
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) { void pollReplies(); void refreshPlaces() } })
+    window.setInterval(() => void refreshWhere(), WHERE_POLL_MS)   // refreshWhere skips hidden tabs
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { void pollReplies(); void refreshPlaces(); void refreshWhere() } })
   })().catch((e: { code?: string; message?: string }) => {
     booting = null
     console.error('[ak] boot failed', e?.code, e?.message)

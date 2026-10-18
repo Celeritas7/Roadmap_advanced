@@ -1,0 +1,113 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>A · Places — hub-owned</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--ui:'Hanken Grotesk',system-ui,sans-serif;--display:'Space Grotesk',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;--role-h:18;--canvas:#fcf7f3;--panel:#fff;--panel-2:#f6f6f3;--ink:#16181d;--ink-2:#565a63;--ink-3:#9a9ea7;--ink-4:#c6c9d0;--rule:#ecece8;--rule-strong:#dedfda;--hover:rgba(20,22,28,.04);--accent:hsl(var(--role-h) 62% 50%);--accent-soft:hsl(var(--role-h) 62% 55% / .12);--accent-ink:hsl(var(--role-h) 52% 40%);--on-accent:#fff;--rad:14px;--rad-sm:9px;--shadow-pop:0 20px 60px rgba(16,18,29,.18),0 0 0 1px rgba(16,18,29,.05)}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:var(--ui);color:var(--ink);background:var(--canvas);background-image:radial-gradient(135% 62% at 50% -8%,hsl(var(--role-h) 65% 52% / .14),transparent 60%);display:grid;place-items:center;padding:24px}
+.scrim{position:fixed;inset:0;background:rgba(22,24,29,.34)}
+.modal{position:relative;width:min(980px,100%);height:min(640px,calc(100dvh - 48px));display:grid;grid-template-columns:212px 1fr;background:var(--panel);border-radius:var(--rad);box-shadow:var(--shadow-pop);overflow:hidden}
+.rail{display:flex;flex-direction:column;background:var(--panel-2);border-right:1px solid var(--rule)}
+.rail-h{padding:20px 18px 12px;font-family:var(--display);font-size:16px;letter-spacing:-.01em}
+.nav{display:flex;flex-direction:column;gap:1px;padding:4px 10px}
+.nav button{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;font-family:var(--ui);font-size:13.5px;color:var(--ink-2);background:none;border:0;border-radius:var(--rad-sm);cursor:pointer;text-align:left}
+.nav button:hover{background:var(--hover)}
+.nav button.on{background:var(--panel);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(16,18,29,.05)}
+.nav .dot{width:5px;height:5px;border-radius:50%;background:var(--accent);opacity:0}
+.nav button.on .dot{opacity:1}
+.who{margin-top:auto;padding:14px 16px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-3);line-height:1.5}
+.who b{display:block;font-family:var(--mono);font-size:11.5px;color:var(--ink-2);font-weight:400;word-break:break-all}
+.pane{display:flex;flex-direction:column;min-width:0;min-height:0}
+.pane-h{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:22px 26px 14px;border-bottom:1px solid var(--rule)}
+.pane-h h2{margin:0;font-family:var(--display);font-size:19px;letter-spacing:-.01em}
+.pane-h p{margin:4px 0 0;font-size:12.5px;color:var(--ink-3)}
+.restore{font-size:12px;color:var(--accent-ink);background:none;border:0;border-bottom:1px solid transparent;cursor:pointer;white-space:nowrap}
+.restore:hover{border-bottom-color:currentColor}
+.body{flex:1;min-height:0;overflow-y:auto;padding:16px 26px 26px;display:flex;flex-direction:column;gap:16px}
+.grp{border:1px solid var(--rule);border-radius:var(--rad);overflow:hidden}
+.grp-h{display:flex;align-items:center;gap:10px;padding:9px 13px;background:var(--panel-2);border-bottom:1px solid var(--rule)}
+.dot-l{width:9px;height:9px;border-radius:50%;flex:none}
+.grp-h .t{font-size:13px;font-weight:600}
+.grp-h .c{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.grp-h .add-s{margin-left:auto;font-size:12px;font-weight:600;color:var(--accent-ink);background:none;border:0;cursor:pointer}
+.row{display:flex;align-items:center;gap:10px;padding:8px 13px;border-top:1px solid var(--rule)}
+.row:first-of-type{border-top:0}
+.row:hover{background:var(--hover)}
+.drag{color:var(--ink-4);cursor:grab;font-size:12px;letter-spacing:-1px;line-height:1}
+.hue-btn{width:20px;height:20px;border-radius:6px;border:1px solid rgba(0,0,0,.08);cursor:pointer;flex:none}
+.cell-in{flex:1;min-width:0;padding:6px 8px;font-family:var(--ui);font-size:13.5px;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:7px;outline:none}
+.cell-in:hover{border-color:var(--rule-strong);background:var(--panel-2)}
+.cell-in:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--panel)}
+.badge{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--rule-strong);padding:3px 7px;border-radius:5px;flex:none}
+.id{font-family:var(--mono);font-size:11px;color:var(--ink-4);flex:none;width:76px}
+.n{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);flex:none;width:34px;text-align:right;font-feature-settings:"tnum"}
+.x{width:24px;height:24px;display:grid;place-items:center;border:1px solid transparent;border-radius:6px;background:none;color:var(--ink-4);cursor:pointer;font-size:13px;flex:none}
+.row:hover .x{border-color:var(--rule-strong);color:var(--ink-2)}
+.x:hover{color:#a3222b;background:rgba(200,40,50,.07);border-color:rgba(200,40,50,.25)}
+.grp.un{border-style:dashed;border-color:var(--rule-strong)}
+.grp.un .grp-h{background:transparent}
+.grp.un .t{color:var(--ink-3);font-weight:500}
+.empty{padding:14px 13px;font-size:12.5px;color:var(--ink-4);font-style:italic}
+.note{margin:0;font-size:12px;line-height:1.5;color:var(--ink-3);text-wrap:pretty}
+.foot{display:flex;align-items:center;gap:10px;padding:14px 26px;border-top:1px solid var(--rule);background:var(--panel-2)}
+.dirty{font-size:12.5px;color:var(--ink-3);margin-right:auto}
+.btn{padding:9px 18px;font-family:var(--ui);font-size:13.5px;font-weight:600;color:var(--ink);background:var(--panel);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);cursor:pointer}
+.btn:hover{background:var(--hover)}
+.btn.pri{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}
+.shared{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--accent-ink);background:var(--accent-soft);padding:3px 8px;border-radius:5px;margin-left:8px;vertical-align:2px}
+.cls{flex:none;width:84px;padding:6px 8px;font-family:var(--ui);font-size:12.5px;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--rule);border-radius:7px;outline:none}
+.cls:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.aka{flex:0 1 90px;min-width:0;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.roles{flex:none;display:flex;gap:3px;width:104px}
+.rl{font-family:var(--mono);font-size:10px;letter-spacing:.04em;padding:2px 5px;border-radius:4px;color:var(--ink-3);border:1px solid var(--rule)}
+.rl.on{color:var(--ink);border-color:var(--rule-strong);background:var(--panel)}
+.gps{flex:none;width:26px;height:26px;display:grid;place-items:center;border:1px dashed var(--rule-strong);border-radius:6px;background:none;color:var(--ink-4);cursor:not-allowed}
+.gps svg{width:13px;height:13px}
+.cols{display:flex;align-items:center;gap:10px;padding:0 13px 2px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-4)}
+.add-row{display:flex;align-items:center;gap:10px;padding:8px 13px;border-top:1px dashed var(--rule-strong)}
+.add-row .cell-in{border-color:var(--rule);background:var(--panel-2)}
+.add-btn{flex:none;padding:6px 12px;font-family:var(--ui);font-size:12.5px;font-weight:600;color:var(--accent-ink);background:none;border:1px solid var(--rule-strong);border-radius:7px;cursor:pointer}
+.ret{display:flex;flex-direction:column}
+.ret summary{cursor:pointer;font-size:12.5px;color:var(--ink-3);list-style:none;padding:2px 0}
+.ret summary::before{content:'▸ ';color:var(--ink-4)}
+.ret[open] summary::before{content:'▾ '}
+.ret .row{opacity:.6}
+.restore-b{font-size:12px;font-weight:600;color:var(--accent-ink);background:none;border:0;cursor:pointer;flex:none}
+a{color:var(--accent-ink)}a:hover{color:var(--accent)}
+.body>*{flex-shrink:0}.row .cell-in{min-width:120px}.row .id{width:56px}.cols .h-id{width:56px}
+</style></head><body>
+<div class="scrim"></div>
+<div class="modal">
+<aside class="rail">
+<div class="rail-h">Settings</div>
+<nav class="nav">
+<button><span class="dot"></span>Account</button>
+<button><span class="dot"></span>Appearance</button>
+<button><span class="dot"></span>Roles &amp; tiers</button>
+<button><span class="dot"></span>Projects</button>
+<button class="on"><span class="dot"></span>Places</button>
+<button><span class="dot"></span>Schedule</button>
+</nav>
+<div class="who">Signed in<b>wf@example.com</b></div>
+</aside>
+<section class="pane">
+<div class="pane-h">
+<div><h2>Places<span class="shared">AKATSUKI · ALL APPS</span></h2><p>The one list every app reads. Renaming keeps the old name as an alias, so tasks tagged with it still match.</p></div>
+</div>
+<div class="body">
+<div class="grp">
+<div class="grp-h"><span class="t">Live</span><span class="c">3 places</span></div>
+<div class="cols"><span style="width:12px"></span><span style="flex:1;min-width:120px">Label</span><span class="h-id">id</span><span style="width:84px">class</span><span style="flex:0 1 90px;min-width:0">also matches</span><span style="width:104px">roles here</span><span style="width:60px"></span></div>
+<div class="row"><span class="drag">⣿</span><input class="cell-in" value="Home"><span class="id">home</span><select class="cls" aria-label="Class"><option selected>home</option><option>office</option><option>transit</option><option>cafe</option><option>out</option></select><span class="aka" title="@home">@home</span><span class="roles"><span class="rl on">FWD</span><span class="rl on">MID</span><span class="rl on">DEF</span></span><button class="gps" disabled title="Set from current location — arrives with GPS (R018)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 9.8 8 14 8 14Z"></path><circle cx="8" cy="6.5" r="1.6"></circle></svg></button><button class="x" title="Retire">×</button></div>
+<div class="row"><span class="drag">⣿</span><input class="cell-in" value="Office"><span class="id">office</span><select class="cls" aria-label="Class"><option>home</option><option selected>office</option><option>transit</option><option>cafe</option><option>out</option></select><span class="aka" title="@office">@office</span><span class="roles"><span class="rl on">FWD</span><span class="rl on">MID</span><span class="rl">DEF</span></span><button class="gps" disabled title="Set from current location — arrives with GPS (R018)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 9.8 8 14 8 14Z"></path><circle cx="8" cy="6.5" r="1.6"></circle></svg></button><button class="x" title="Retire">×</button></div>
+<div class="row"><span class="drag">⣿</span><input class="cell-in" value="Train"><span class="id">train</span><select class="cls" aria-label="Class"><option>home</option><option>office</option><option selected>transit</option><option>cafe</option><option>out</option></select><span class="aka" title="@train">@train</span><span class="roles"><span class="rl on">FWD</span><span class="rl">MID</span><span class="rl">DEF</span></span><button class="gps" disabled title="Set from current location — arrives with GPS (R018)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 9.8 8 14 8 14Z"></path><circle cx="8" cy="6.5" r="1.6"></circle></svg></button><button class="x" title="Retire">×</button></div>
+<div class="add-row"><span class="drag" style="visibility:hidden">⣿</span><input class="cell-in" placeholder="New place — e.g. Café Veloce"><select class="cls" aria-label="Class for new place"><option>home</option><option>office</option><option>transit</option><option selected>cafe</option><option>out</option></select><button class="add-btn">+ Add</button></div>
+</div>
+<details class="ret"><summary>Retired · 1</summary>
+<div class="grp" style="margin-top:8px"><div class="row"><span class="drag" style="visibility:hidden">⣿</span><input class="cell-in" value="Library" disabled><span class="id">library</span><span class="aka">—</span><span style="flex:1"></span><button class="restore-b">Restore</button></div></div>
+</details>
+<p class="note"><b>Class</b> is what the suggester matches on — a task tagged for <i>transit</i> fits any transit place. <b>Roles here</b> is set per role in Roles &amp; tiers. Retiring hides a place from pickers; old tasks still resolve. The pin sets a place from your current location once GPS lands.</p>
+</div>
+<div class="foot"><span class="dirty">1 unsaved change · saves to the hub</span><button class="btn">Cancel</button><button class="btn pri">Save</button></div>
+</section>
+</div>
+</body></html>
