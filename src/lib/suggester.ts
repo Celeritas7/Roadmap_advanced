@@ -7,6 +7,7 @@ import { supabase } from './supabase.ts'
 import { dayKey, prevDayKey } from './dailyReset.ts'
 import * as sessionSync from '../store/studySessions.ts'
 import { activeRoleIds, effectiveRoleId } from '../store/selectors.ts'
+import { categoryOf, lockedSlots, rotate, type Served } from './rotation.ts'
 import { addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, hubWhere, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
 import type { AkBanner, Device, Energy, PlaceSource, RmHubInstance, SuggestCtx, SuggestTask, WfAddr } from '../types.ts'
 import type { useStore } from '../store/useStore.ts'
@@ -23,6 +24,7 @@ const K_PLACE_AT = 'rm-ak-place-at'
 const PICK_TTL = 2 * 3600_000          // R033 (a): a manual pick wins for 2 h
 const STALE_VISIT_MS = 30 * 60_000     // R033 (c): a visit that ended < 30 min ago
 const WHERE_MAX_AGE = 5 * 60_000       // a whereNow() read older than this (tab was hidden) is ignored
+const K_STUCK = 'rm-ak-stuck'
 const COLS = 'id, task, rm_task_id, title, level, ctx, tone_step, say, made_at, until, answer, reason, answer_app, answered_at, missed, done_at'
 
 export type SuggestionRow = {
@@ -50,6 +52,7 @@ let banner: AkBanner | null = null
 let timer: number | undefined
 let busy = false
 let latest: SuggestionRow | null = null
+let served: Served[] = []   // refreshed each tick; read by doableNow()
 
 const bump = () => store?.setState({ hubRev: store.getState().hubRev + 1 })
 
@@ -136,6 +139,28 @@ export function resolvePlace(): ResolvedPlace {
   return { cls: 'anywhere', label: 'anywhere', src: 'none', at: null }
 }
 
+// Stuck / delayed / travelling: a fixed window of spare time. While it runs,
+// only tasks whose effort fits the minutes left are offered, and any of them —
+// low priority included — may lead when nothing else can be done.
+export type Stuck = { minutes: number; since: number; until: number }
+export function readStuck(): Stuck | null {
+  try {
+    const s = JSON.parse(localStorage.getItem(K_STUCK) || 'null') as Stuck | null
+    return s && s.until > Date.now() ? s : null
+  } catch { return null }
+}
+export function saveStuck(minutes: number | null) {
+  if (minutes) {
+    const now = Date.now()
+    localStorage.setItem(K_STUCK, JSON.stringify({ minutes, since: now, until: now + minutes * 60_000 }))
+  } else localStorage.removeItem(K_STUCK)
+  bump()
+  void tick()
+}
+const EFFORT_MIN: Record<string, number> = { quick: 10, medium: 30, deep: 60 }
+const fits = (t: SuggestTask, s: Stuck | null) =>
+  !s || (EFFORT_MIN[t.effort ?? 'medium'] ?? 30) <= (s.until - Date.now()) / 60_000
+
 function buildCtx(): SuggestCtx {
   const s = store!.getState()
   const d = new Date()
@@ -173,12 +198,52 @@ function candidates(): SuggestTask[] {
   return out
 }
 
+// Everything doable here and now, best first: the rotation's slot, then tasks
+// that keep today's one-slot-per-category, then the rest. The tail is what
+// lets a low-priority task lead when nothing ahead of it can be done.
+function ranked(pool: SuggestTask[], ctx: SuggestCtx): SuggestTask[] {
+  const score = window.RmHub.score
+  const stuck = readStuck()
+  const doable = pool.filter((t) => score(t, ctx) > -Infinity && fits(t, stuck))
+  const turn = new Set(rotate(doable, ctx, served, score))
+  const locks = lockedSlots(served)
+  const keepsLock = (t: SuggestTask) => {
+    const k = locks.get(categoryOf(t.addr.item_key))
+    return !k || k === t.addr.item_key
+  }
+  const tier = (t: SuggestTask) => (turn.has(t) ? 0 : keepsLock(t) ? 1 : 2)
+  return doable.sort((a, b) => tier(a) - tier(b) || score(b, ctx) - score(a, ctx))
+}
+
+/** Home's "doable here" list. Uses the history from the last pick. */
+export function doableNow(limit = 5): SuggestTask[] {
+  if (!store || !window.RmHub) return []
+  return ranked(candidates(), buildCtx()).slice(0, limit)
+}
+
 // ── The log ────────────────────────────────────────────────────────────
 async function latestRow(): Promise<SuggestionRow | null> {
   const { data, error } = await supabase.from('roadmap_suggestions').select(COLS).order('made_at', { ascending: false }).limit(1).maybeSingle()
   if (error) throw error
   return data as SuggestionRow | null
 }
+// Fair-rotation input: when each WF item was last started or done.
+const SERVED_DAYS = 120
+async function servedHistory(): Promise<Served[]> {
+  const { data, error } = await supabase
+    .from('roadmap_suggestions')
+    .select('task, answered_at, done_at')
+    .or('answer.eq.start,done_at.not.is.null')
+    .gte('made_at', new Date(Date.now() - SERVED_DAYS * 86_400_000).toISOString())
+  if (error) throw error
+  const out: Served[] = []
+  for (const r of (data ?? []) as { task: WfAddr; answered_at: string | null; done_at: string | null }[]) {
+    const at = r.done_at ?? r.answered_at
+    if (at) out.push({ task: r.task, at })
+  }
+  return out
+}
+
 // Live = not missed, not done, unanswered or started, and `until` not passed.
 const isLive = (r: SuggestionRow, now: number) =>
   !r.missed && !r.done_at && (!r.answer || r.answer === 'start') && Date.parse(r.until) > now
@@ -193,9 +258,30 @@ export async function tick(): Promise<void> {
   busy = true
   try {
     await refreshTags()
+    served = await servedHistory()
     const now = Date.now()
     let prev = await latestRow()
-    if (prev && isLive(prev, now)) { latest = prev; return }
+    if (prev && isLive(prev, now)) {
+      // An unanswered suggestion that no longer fits — you moved (hub place or
+      // pick changed) and it can't be done here, or a stuck window opened after
+      // it and the time left is too short — is replaced. Not a miss, so the
+      // tone doesn't rise.
+      const stuck = readStuck()
+      const cur = !prev.answer ? candidates().find((c) => addrKey(c.addr) === addrKey(prev!.task)) : undefined
+      const reason = !cur || cur.done ? null
+        : window.RmHub.score(cur, buildCtx()) === -Infinity ? 'not doable here'
+        : stuck && Date.parse(prev.made_at) < stuck.since && !fits(cur, stuck) ? 'not enough time'
+        : null
+      if (!reason) { latest = prev; return }
+      const answeredAt = new Date().toISOString()
+      const { error } = await supabase
+        .from('roadmap_suggestions')
+        .update({ answer: 'skip', reason, answered_at: answeredAt, missed: false })
+        .eq('id', prev.id)
+        .is('answered_at', null)
+      if (error) throw error
+      prev = { ...prev, answer: 'skip', reason, answered_at: answeredAt, missed: false }
+    }
     if (prev && !prev.answer && !prev.done_at && prev.missed == null) {
       // `until` passed with no answer → a miss.
       const { error } = await supabase.from('roadmap_suggestions').update({ missed: true }).eq('id', prev.id).is('answered_at', null)
@@ -205,7 +291,7 @@ export async function tick(): Promise<void> {
     const ctx = buildCtx()
     // Don't hand straight back the task that was just skipped or missed.
     const avoid = prev && (prev.missed || prev.answer === 'skip') ? addrKey(prev.task) : null
-    const t = window.RmHub.pick(candidates().filter((c) => addrKey(c.addr) !== avoid), ctx)
+    const t = ranked(candidates().filter((c) => addrKey(c.addr) !== avoid), ctx)[0] ?? null
     if (!t) {
       latest = null
       await hub.clearSuggestion()
@@ -216,7 +302,8 @@ export async function tick(): Promise<void> {
     // A night miss doesn't raise the tone (STEP2 point 10).
     const step = prev ? window.RmHub.nextToneAt(prev.tone_step, { missed: !!prev.missed, done: !!prev.done_at, energy: ctx.energy }, ctx.hour) : 0
     const id = `sg-${now.toString(36)}-${Math.random().toString(36).slice(2, 7)}`
-    const until = new Date(now + UNTIL_MIN * 60_000).toISOString()
+    const stuck = readStuck()
+    const until = new Date(Math.min(now + UNTIL_MIN * 60_000, stuck?.until ?? Infinity)).toISOString()
     const say = window.RmHub.say(t.title, step, ctx.energy, ctx.hour)
     const { data, error } = await supabase
       .from('roadmap_suggestions')

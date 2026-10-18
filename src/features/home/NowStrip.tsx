@@ -6,8 +6,8 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import {
-  clearCheckin, needsCheckin, pickedPlace, readCheckin, readDevice, resolvePlace, reviewDue,
-  saveCheckin, saveDevice, savePlace, weekReview, weekStart, type ResolvedPlace, type WeekReview,
+  clearCheckin, doableNow, needsCheckin, pickedPlace, readCheckin, readDevice, readStuck, resolvePlace, reviewDue,
+  saveCheckin, saveDevice, savePlace, saveStuck, weekReview, weekStart, type ResolvedPlace, type WeekReview,
 } from '../../lib/suggester.ts'
 import { addrKey, correctTag, hubInstance, hubPlaces, hubTags, tagAddr } from '../../lib/rmHub.ts'
 import type { Device, Energy } from '../../types.ts'
@@ -15,6 +15,7 @@ import type { Device, Energy } from '../../types.ts'
 const ENERGY: Energy[] = ['high', 'mid', 'low']
 const DEVICES: Device[] = ['phone', 'laptop', 'either']
 const FALLBACK_MOOD = ['down', 'even', 'up']
+const STUCK_MIN = [10, 20, 45, 90]
 
 // R033: say where ctx.place came from. Unknown stays unknown — never a place.
 function placeNote(r: ResolvedPlace): string {
@@ -43,6 +44,9 @@ export function NowStrip() {
   const device = readDevice()
   const pick = pickedPlace()
   const where = resolvePlace()
+  const stuck = readStuck()
+  const left = stuck ? Math.max(1, Math.round((stuck.until - Date.now()) / 60_000)) : 0
+  const doable = doableNow()
 
   const cur = window.rm?.banner.current() ?? null
   const live = cur && Date.parse(cur.until) > Date.now() ? cur : null
@@ -103,6 +107,32 @@ export function NowStrip() {
         </select>
         <span className="ns-note">{placeNote(where)}</span>
       </div>
+
+      <div className="ns-row">
+        <span className="ns-k">Stuck for</span>
+        <div className="ns-seg" role="radiogroup" aria-label="Spare time">
+          {STUCK_MIN.map((m) => (
+            <button key={m} type="button" role="radio" aria-checked={stuck?.minutes === m} className={'ns-chip' + (stuck?.minutes === m ? ' on' : '')} onClick={() => saveStuck(stuck?.minutes === m ? null : m)}>
+              {m}m
+            </button>
+          ))}
+        </div>
+        <span className="ns-note">{stuck ? `${left} min left · only what fits` : 'late train, waiting, travelling'}</span>
+      </div>
+
+      {doable.length > 0 && (
+        <div className="ns-doable">
+          <span className="ns-k">{where.src === 'none' ? 'Doable now' : `Doable at ${where.label}`}{stuck ? ` · within ${left} min` : ''}</span>
+          <ul className="ns-list">
+            {doable.map((t) => (
+              <li key={addrKey(t.addr)}>
+                <span>{t.title}</span>
+                <em>{t.effort ?? 'medium'}{live && addrKey(live.task) === addrKey(t.addr) ? ' · suggested' : ''}</em>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {live && tag && (
         <div className="ns-row">
