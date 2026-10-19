@@ -1461,3 +1461,5 @@ body {
 .ib-rule{display:flex;align-items:center;gap:6px}
 .ib-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .ib-del{color:var(--ink-2)}
+.ib-bulk{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;background:var(--panel-2);border:1px dashed var(--rule-strong);border-radius:var(--rad-sm)}
+.ib-move{max-width:260px}
