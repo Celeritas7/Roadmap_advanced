@@ -1503,3 +1503,20 @@ body {
   .ib-pill,.ib-actions .ns-chip,.ib-actions .ns-sel{min-height:44px}
   .ib-actions{width:100%;justify-content:space-between}
 }
+/* Inbox · phase 3: selection checkboxes and the sticky bulk bar */
+.ib-check{flex:none;width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent);cursor:pointer}
+.ib-top{align-items:flex-start}
+.ib-top .ib-name{flex:1;min-width:0}
+.ib-item.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.ib-selall{display:flex;align-items:center;gap:10px;padding:2px 15px;font-size:13px;color:var(--ink-2);cursor:pointer}
+.ib-bar{position:sticky;bottom:12px;z-index:15;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;background:var(--panel);border:1px solid var(--accent);border-radius:var(--rad-sm);box-shadow:0 12px 32px rgba(0,0,0,.16)}
+.ib-bar-n{font-weight:600;font-size:13px;color:var(--ink);margin-right:4px}
+@media (max-width:720px){
+  .ib-check{width:22px;height:22px}
+  .ib-bar{bottom:8px}
+  .ib-bar .ns-chip,.ib-bar .ns-sel{min-height:44px}
+}
+@media (max-width:720px){
+  .ib-actions{flex-wrap:nowrap}
+  .ib-actions .ib-move{flex:1 1 auto;min-width:0;max-width:none}
+}

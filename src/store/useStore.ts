@@ -75,6 +75,9 @@ export type StoreState = {
   addFolder: (parentId: string | null, title: string, tags?: string[]) => Promise<string>
   updateTask: (id: string, patch: TaskUpdate) => Promise<void>
   deleteTask: (id: string) => Promise<void>
+  // Batch forms for the Inbox: one optimistic state change, one rollback.
+  updateTasks: (patches: { id: string; patch: TaskUpdate }[]) => Promise<void>
+  deleteTasks: (ids: string[]) => Promise<void>
   clearError: () => void
   toggleGroup: (id: string) => Promise<void>
   reorderTask: (taskId: string, newIndex: number) => Promise<void>
@@ -288,6 +291,41 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const row = await sync.updateTask(id, patch)
       set({ tree: get().tree.map((t) => (t.id === id ? row : t)) })
+    } catch (e) {
+      set({ tree: prev, error: errorMessage(e) })
+      throw e
+    }
+  },
+
+  updateTasks: async (patches) => {
+    if (!patches.length) return
+    const prev = get().tree
+    const byId = new Map(patches.map((p) => [p.id, p.patch]))
+    set({ tree: prev.map((t) => (byId.has(t.id) ? { ...t, ...byId.get(t.id) } : t)) })
+    try {
+      // Patches differ per row (each task's own tag list), so one request each,
+      // in parallel. Any failure rolls the whole batch back.
+      const rows = await Promise.all(patches.map((p) => sync.updateTask(p.id, p.patch)))
+      const fresh = new Map(rows.map((r) => [r.id, r]))
+      set({ tree: get().tree.map((t) => fresh.get(t.id) ?? t) })
+    } catch (e) {
+      set({ tree: prev, error: errorMessage(e) })
+      throw e
+    }
+  },
+
+  deleteTasks: async (ids) => {
+    if (!ids.length) return
+    const prev = get().tree
+    const removing = new Set<string>()
+    for (const id of ids) for (const rid of subtreeIds(prev, id)) removing.add(rid)
+    if ([...removing].some((rid) => hubAddrOf(rid))) {
+      set({ error: 'That holds Weekly Focus tasks — delete them in Weekly Focus.' })
+      return
+    }
+    set({ tree: prev.filter((t) => !removing.has(t.id)), error: null })
+    try {
+      await sync.deleteTasks(ids)
     } catch (e) {
       set({ tree: prev, error: errorMessage(e) })
       throw e

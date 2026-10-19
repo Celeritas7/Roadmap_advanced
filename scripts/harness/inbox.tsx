@@ -21,6 +21,9 @@ const tree: TaskRow[] = [
   row('t2', 'Goi practice sheets', 'f-ja', 'task', ['train', 'parked'], 1),
   row('t3', 'Python code for mechanical calculations', 'f-mech', 'task', ['keyboard', 'deep-focus', 'parked']),
   row('t4', 'Sheet metal: get the transcript', 'f-mech', 'task', ['keyboard', 'parked'], 1),
+  row('f-home', 'Home, food & cleaning', 'inbox', 'group', ['food'], 2),
+  ...['Wash clothes', 'Cook rice', 'Make curry', 'Clean the fridge', 'Throw the gomi'].map((t, i) =>
+    row('h' + i, t, 'f-home', 'task', ['parked'], i)),
 ]
 let n = 0
 useStore.setState({
@@ -34,6 +37,16 @@ useStore.setState({
   },
   deleteTask: async (id: string) => {
     useStore.setState({ tree: useStore.getState().tree.filter((t) => t.id !== id) })
+  },
+  updateTasks: async (patches: { id: string; patch: TaskUpdate }[]) => {
+    const m = new Map(patches.map((p) => [p.id, p.patch]))
+    ;(window as unknown as { batchCalls: number }).batchCalls = ((window as unknown as { batchCalls?: number }).batchCalls ?? 0) + 1
+    useStore.setState({ tree: useStore.getState().tree.map((t) => (m.has(t.id) ? { ...t, ...m.get(t.id) } : t)) })
+  },
+  deleteTasks: async (ids: string[]) => {
+    ;(window as unknown as { batchCalls: number }).batchCalls = ((window as unknown as { batchCalls?: number }).batchCalls ?? 0) + 1
+    const gone = new Set(ids)
+    useStore.setState({ tree: useStore.getState().tree.filter((t) => !gone.has(t.id)) })
   },
   addFolder: async (parent_id: string | null, title: string, tags: string[] = []) => {
     const id = 'new' + ++n

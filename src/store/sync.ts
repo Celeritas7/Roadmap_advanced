@@ -46,6 +46,12 @@ export async function updateTask(id: string, patch: TaskUpdate): Promise<TaskRow
   return data as TaskRow
 }
 
+export async function deleteTasks(ids: string[]): Promise<void> {
+  if (!ids.length) return
+  const { error } = await supabase.from('roadmap_tasks').delete().in('id', ids)
+  if (error) throw error
+}
+
 export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from('roadmap_tasks').delete().eq('id', id)
   if (error) throw error
