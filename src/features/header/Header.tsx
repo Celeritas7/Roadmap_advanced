@@ -7,6 +7,7 @@ import { useEffectiveRoleId } from '../../hooks/useEffectiveRoleId.ts'
 import { useStore } from '../../store/useStore.ts'
 import { SettingsModal } from '../settings/SettingsModal.tsx'
 import { WeeklySync } from './WeeklySync.tsx'
+import { isInboxItem } from '../inbox/InboxView.tsx'
 
 export function Header() {
   // The mood tagline tracks the effective (single) role — shared derivation so
@@ -15,6 +16,7 @@ export function Header() {
   const mood = ROLE_BY_ID[effId]?.mood ?? ''
   const view = useStore((s) => s.view)
   const setView = useStore((s) => s.setView)
+  const inboxCount = useStore((s) => s.tree.filter(isInboxItem).length)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const today = new Date()
@@ -44,7 +46,7 @@ export function Header() {
         <span className="rm-kbd">⌘K to jump</span>
         {/* V2-B nav: Home | Plan (Contexts parked) */}
         <div className="rm-tabs" role="tablist" aria-label="View">
-          {(['home', 'plan'] as const).map((id) => (
+          {(['home', 'plan', 'inbox'] as const).map((id) => (
             <button
               key={id}
               type="button"
@@ -53,7 +55,8 @@ export function Header() {
               className={'rm-tab' + (view === id ? ' active' : '')}
               onClick={() => setView(id)}
             >
-              {id === 'home' ? 'Home' : 'Plan'}
+              {id === 'home' ? 'Home' : id === 'plan' ? 'Plan' : 'Inbox'}
+              {id === 'inbox' && inboxCount > 0 && <span className="n">{inboxCount}</span>}
             </button>
           ))}
         </div>
