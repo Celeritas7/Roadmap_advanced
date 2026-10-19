@@ -238,6 +238,9 @@ export const INITIAL_LOG: LogInsert[] = [
 ]
 
 // ─── seedIfEmpty ─────────────────────────────────────────────────────
+// Not called on load (see useStore.init). Its emptiness check is an
+// RLS-scoped count: zero means "no rows THIS session can see", not "new
+// user". Call it only from an explicit user action on a fresh account.
 
 export type SeedResult = { seeded: boolean; inserted: number }
 
