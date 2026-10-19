@@ -107,9 +107,11 @@ export function levelOfProject(project: string): string | null {
 async function folderFor(project: string): Promise<string> {
   const label = PROJECT_BY_ID[project]?.label ?? project
   const tops = get().tree.filter((r) => r.kind === 'group' && r.parent_id === null)
+  // Prefer the folder tagged with the project over a same-titled copy, so a
+  // duplicate top folder can't split the mirrors between the two.
   const hit = tops
     .filter((r) => r.tags.includes(project) || r.title.startsWith(label))
-    .sort((a, b) => a.position - b.position)[0]
+    .sort((a, b) => Number(b.tags.includes(project)) - Number(a.tags.includes(project)) || a.position - b.position)[0]
   if (hit) return hit.id
   const row = await sync.insertTask({ parent_id: null, title: label, kind: 'group', position: tops.length, expanded: true, tags: [project] })
   patchTree(row)
