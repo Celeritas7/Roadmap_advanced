@@ -74,6 +74,7 @@ export type StoreState = {
   init: () => Promise<void>
   toggleTask: (id: string) => Promise<void>
   addTask: (parentId: string | null, title: string, tags?: string[]) => Promise<void>
+  addFolder: (parentId: string | null, title: string, tags?: string[]) => Promise<string>
   updateTask: (id: string, patch: TaskUpdate) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   clearError: () => void
@@ -261,6 +262,18 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const row = await sync.insertTask(input)
       set({ tree: [...get().tree, row] })
+    } catch (e) {
+      set({ error: errorMessage(e) })
+      throw e
+    }
+  },
+
+  addFolder: async (parentId, title, tags = []) => {
+    const siblings = get().tree.filter((t) => t.parent_id === parentId)
+    try {
+      const row = await sync.insertTask({ parent_id: parentId, title, kind: 'group', position: siblings.length, expanded: true, tags })
+      set({ tree: [...get().tree, row] })
+      return row.id
     } catch (e) {
       set({ error: errorMessage(e) })
       throw e
