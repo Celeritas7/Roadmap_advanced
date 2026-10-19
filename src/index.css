@@ -1520,3 +1520,19 @@ body {
   .ib-actions{flex-wrap:nowrap}
   .ib-actions .ib-move{flex:1 1 auto;min-width:0;max-width:none}
 }
+/* Inbox · phase 4: view toggle, sort, daily counter, review card */
+.ib-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.ib-modes{display:flex;gap:6px}
+.ib-count{margin-left:auto}
+.inbox kbd{display:inline-block;min-width:16px;margin-left:4px;padding:0 4px;font-family:var(--mono);font-size:10.5px;line-height:16px;text-align:center;color:inherit;opacity:.75;border:1px solid currentColor;border-radius:4px}
+.ib-review{display:flex;flex-direction:column;gap:12px;padding:20px 22px;background:var(--panel);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);box-shadow:0 6px 24px rgba(0,0,0,.06)}
+.ib-rv-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 16px;font-size:12px;color:var(--ink-2)}
+.ib-rv-title{margin:0;font-size:20px;line-height:1.35;color:var(--ink)}
+.ib-review .ib-pill{min-height:40px;font-size:13.5px;padding:7px 14px}
+.ib-rv-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.ib-rv-actions .ns-chip{min-height:44px;padding:8px 16px;font-size:14px}
+@media (max-width:720px){
+  .ib-count{margin-left:0;width:100%}
+  .ib-rv-actions{display:grid;grid-template-columns:auto 1fr 1fr 1fr}
+  .inbox kbd,.ib-keys{display:none}
+}
