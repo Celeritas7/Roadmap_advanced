@@ -5,6 +5,11 @@
 // With a folder chip picked: keep the whole folder, or move the folder
 // itself to the main list or into another folder.
 //
+// Phase 3: multi-select. Each card has a checkbox (shift-click selects a
+// range); a sticky bar acts on the selection: Keep, Delete (one Undo strip
+// for the batch), Move to, Set rule. Batches write through updateTasks /
+// deleteTasks: one optimistic state change, one rollback.
+//
 // Phase 2: the four rules render as tag pills; tapping one opens a 44 px-row
 // picker (one open at a time, Esc/outside click closes). Cards are a title
 // row, optional links, then pills left / actions right.
@@ -51,7 +56,8 @@ const pickOf = (t: TaskRow, family: string[]) => t.tags.find((x) => family.inclu
 const withPick = (t: TaskRow, family: string[], v: string) => [...t.tags.filter((x) => !family.includes(x)), ...(v ? [v] : [])]
 
 type PendingKind = 'keep' | 'delete'
-type Pending = { kind: PendingKind; timer: number }
+// `batch` groups items acted on together: one strip, one timer, one Undo.
+type Pending = { kind: PendingKind; timer: number; batch?: string }
 // Where an inline "new folder" field is open: a task id (move that task) or
 // 'folder' (move the picked folder).
 type NewFor = { target: string; title: string } | null
@@ -61,12 +67,16 @@ export function InboxView() {
   const resources = useStore((s) => s.resources)
   const updateTask = useStore((s) => s.updateTask)
   const deleteTask = useStore((s) => s.deleteTask)
+  const updateTasks = useStore((s) => s.updateTasks)
+  const deleteTasks = useStore((s) => s.deleteTasks)
   const addFolder = useStore((s) => s.addFolder)
   const [folder, setFolder] = useState('all')   // a parent id, or 'all'
   const [pending, setPending] = useState<Map<string, Pending>>(new Map())
   const [newFor, setNewFor] = useState<NewFor>(null)
   const [live, setLive] = useState('')   // aria-live announcement
   const [open, setOpen] = useState<{ id: string; key: string } | null>(null)   // the one open pill picker
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [anchor, setAnchor] = useState<string | null>(null)   // last checkbox clicked, for shift-ranges
 
   // Writes are deferred while a card shows its Undo strip. The ref mirrors
   // `pending` so the unmount cleanup can flush what's still waiting.
@@ -82,7 +92,32 @@ export function InboxView() {
     if (kind === 'delete') ok(deleteTask(id))
     else ok(updateTask(id, { tags: t.tags.filter((x) => x !== PARKED_TAG) }))
   }
+  const unpark = (t: TaskRow) => ({ id: t.id, patch: { tags: t.tags.filter((x) => x !== PARKED_TAG) } })
+  const commitBatch = (ids: string[], kind: PendingKind) => {
+    const rows = ids.map((id) => treeRef.current.find((x) => x.id === id)).filter((t): t is TaskRow => !!t)
+    if (!rows.length) return
+    if (kind === 'delete') ok(deleteTasks(rows.map((t) => t.id)))
+    else ok(updateTasks(rows.map(unpark)))
+  }
   const settle = (id: string) => setPending((m) => { const n = new Map(m); n.delete(id); return n })
+  const settleMany = (ids: string[]) => setPending((m) => { const n = new Map(m); for (const id of ids) n.delete(id); return n })
+  const pendBatch = (ts: TaskRow[], kind: PendingKind) => {
+    const ids = ts.filter((t) => !pendingRef.current.has(t.id)).map((t) => t.id)
+    if (!ids.length) return
+    if (ids.length === 1) { pend(ts.find((t) => t.id === ids[0])!, kind); return }
+    const batch = 'b' + Date.now().toString(36)
+    const timer = window.setTimeout(() => { commitBatch(ids, kind); settleMany(ids) }, UNDO_MS)
+    setPending((m) => { const n = new Map(m); for (const id of ids) n.set(id, { kind, timer, batch }); return n })
+    setSelected(new Set())
+    setLive(`${kind === 'keep' ? 'Kept' : 'Deleted'} ${ids.length} items. Undo available.`)
+  }
+  const undoBatch = (batch: string) => {
+    const ids = [...pendingRef.current].filter(([, p]) => p.batch === batch).map(([id]) => id)
+    const p = pendingRef.current.get(ids[0])
+    if (p) window.clearTimeout(p.timer)
+    settleMany(ids)
+    setLive(`Restored ${ids.length} items.`)
+  }
   const pend = (t: TaskRow, kind: PendingKind) => {
     const prev = pendingRef.current.get(t.id)
     if (prev) window.clearTimeout(prev.timer)
@@ -98,7 +133,15 @@ export function InboxView() {
   }
   // Leaving the Inbox (tab switch, sign-out) commits whatever is still on a strip.
   useEffect(() => () => {
-    for (const [id, p] of pendingRef.current) { window.clearTimeout(p.timer); commit(id, p.kind) }
+    const batches = new Map<string, { kind: PendingKind; ids: string[] }>()
+    for (const [id, p] of pendingRef.current) {
+      window.clearTimeout(p.timer)
+      if (!p.batch) { commit(id, p.kind); continue }
+      const b = batches.get(p.batch) ?? { kind: p.kind, ids: [] }
+      b.ids.push(id)
+      batches.set(p.batch, b)
+    }
+    for (const b of batches.values()) commitBatch(b.ids, b.kind)
   }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const byId = new Map(tree.map((t) => [t.id, t]))
@@ -109,6 +152,30 @@ export function InboxView() {
   const count = (fid: string) => items.filter((t) => (t.parent_id ?? '') === fid).length
   const shown = items.filter((t) => folder === 'all' || (t.parent_id ?? '') === folder).sort((a, b) => a.position - b.position)
   const picked = folder !== 'all' ? byId.get(folder) : undefined
+  // Selection only counts cards that are on screen and not on an Undo strip.
+  const visible = shown.filter((t) => !pending.has(t.id))
+  const sel = visible.filter((t) => selected.has(t.id))
+  const toggle = (t: TaskRow, range: boolean) => {
+    const next = new Set(selected)
+    const on = !next.has(t.id)
+    const a = range && anchor ? visible.findIndex((x) => x.id === anchor) : -1
+    const b = visible.findIndex((x) => x.id === t.id)
+    if (a >= 0 && b >= 0) for (const x of visible.slice(Math.min(a, b), Math.max(a, b) + 1)) on ? next.add(x.id) : next.delete(x.id)
+    else on ? next.add(t.id) : next.delete(t.id)
+    setSelected(next)
+    setAnchor(t.id)
+  }
+  const allOn = visible.length > 0 && sel.length === visible.length
+  const selectAll = () => setSelected(allOn ? new Set() : new Set(visible.map((t) => t.id)))
+  // One strip per batch, counting only items in the current folder view.
+  const batches = new Map<string, { kind: PendingKind; n: number }>()
+  for (const t of shown) {
+    const p = pending.get(t.id)
+    if (!p?.batch) continue
+    const b = batches.get(p.batch) ?? { kind: p.kind, n: 0 }
+    b.n++
+    batches.set(p.batch, b)
+  }
 
   // Move targets: every folder outside the inbox's own root folder(s), by path;
   // same-path duplicates collapse to the first.
@@ -133,12 +200,26 @@ export function InboxView() {
   }, [open])
   const endOf = (parent: string | null) => tree.filter((x) => x.parent_id === parent).length
   const reparent = (id: string, parent: string | null) => ok(updateTask(id, { parent_id: parent, position: endOf(parent) }))
+  const reparentMany = (ts: TaskRow[], parent: string) => {
+    const base = endOf(parent)
+    ok(updateTasks(ts.map((t, i) => ({ id: t.id, patch: { parent_id: parent, position: base + i } }))))
+    setSelected(new Set())
+    setLive(`Moved ${ts.length} items to ${titleOf(parent)}.`)
+  }
+  const setRuleMany = (v: string) => {
+    const [key, id] = v.split(':')
+    const f = FAMILIES.find((x) => x.key === key)
+    if (!f) return
+    ok(updateTasks(sel.map((t) => ({ id: t.id, patch: { tags: withPick(t, f.ids, id) } }))))
+    setLive(`Set ${f.label.toLowerCase()} on ${sel.length} items.`)
+  }
   // A "Move to" pick: TOP → main list, NEW → open the inline field, else a folder id.
   const onMove = (target: string, v: string) => {
     if (!v) return
     if (v === NEW) { setNewFor({ target, title: '' }); return }
     const parent = v === TOP ? null : v
     if (target === 'folder') { if (picked && parent !== picked.id) reparent(picked.id, parent) }
+    else if (target === 'selection') { if (parent !== null) reparentMany(sel, parent) }
     else if (parent !== null) reparent(target, parent)
   }
   const saveNew = async () => {
@@ -147,10 +228,11 @@ export function InboxView() {
     if (!title) return
     const id = await addFolder(null, title)
     if (newFor.target === 'folder') { if (picked) reparent(picked.id, id) }
+    else if (newFor.target === 'selection') reparentMany(sel, id)
     else reparent(newFor.target, id)
     setNewFor(null)
   }
-  const keepAll = () => { for (const t of shown) if (!pending.has(t.id)) pend(t, 'keep') }
+  const keepAll = () => pendBatch(shown, 'keep')
 
   const moveOptions = (top: boolean) => (
     <>
@@ -206,9 +288,26 @@ export function InboxView() {
 
       {shown.length === 0 && <p className="rv-empty">✓ Inbox is empty.</p>}
 
+      {visible.length > 0 && (
+        <label className="ib-selall">
+          <input type="checkbox" className="ib-check" checked={allOn} onChange={selectAll} />
+          <span>{allOn ? 'Clear selection' : `Select all ${visible.length}`}</span>
+          {sel.length > 0 && !allOn && <span className="ns-note">{sel.length} selected · shift-click selects a range</span>}
+        </label>
+      )}
+
+      {[...batches].map(([batch, b]) => (
+        <div key={batch} className={'ib-strip ' + b.kind}>
+          <span className="ib-strip-k">{b.kind === 'keep' ? 'Kept' : 'Deleted'}</span>
+          <span className="ib-strip-t">{b.n} items</span>
+          <button type="button" className="ns-chip" onClick={() => undoBatch(batch)}>Undo</button>
+        </div>
+      ))}
+
       <ul className="ib-list">
         {shown.map((t) => {
           const p = pending.get(t.id)
+          if (p?.batch) return null
           if (p) {
             return (
               <li key={t.id} className={'ib-strip ' + p.kind}>
@@ -219,8 +318,16 @@ export function InboxView() {
             )
           }
           return (
-            <li key={t.id} className="ib-item">
+            <li key={t.id} className={'ib-item' + (selected.has(t.id) ? ' sel' : '')}>
               <div className="ib-top">
+                <input
+                  type="checkbox"
+                  className="ib-check"
+                  checked={selected.has(t.id)}
+                  onChange={() => {}}
+                  onClick={(e) => toggle(t, e.shiftKey)}
+                  aria-label={`Select ${t.title}`}
+                />
                 <span className="ib-name">{t.title}</span>
                 {folder === 'all' && <span className="ib-folder">{titleOf(t.parent_id)}</span>}
               </div>
@@ -258,6 +365,28 @@ export function InboxView() {
           )
         })}
       </ul>
+
+      {sel.length > 0 && (
+        <div className="ib-bar" role="toolbar" aria-label="Selected items">
+          <span className="ib-bar-n">{sel.length} selected</span>
+          <button type="button" className="ns-chip on" onClick={() => pendBatch(sel, 'keep')}>Keep</button>
+          <select className="ns-sel" value="" onChange={(e) => onMove('selection', e.target.value)} aria-label="Move selected to folder">
+            <option value="">Move to…</option>
+            {moveOptions(false)}
+          </select>
+          <select className="ns-sel" value="" onChange={(e) => { if (e.target.value) setRuleMany(e.target.value) }} aria-label="Set a rule on selected">
+            <option value="">Set rule…</option>
+            {FAMILIES.map((f) => (
+              <optgroup key={f.key} label={f.label}>
+                {f.choices.map((c) => <option key={c.id || 'none'} value={`${f.key}:${c.id}`}>{c.label}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          <button type="button" className="ns-chip ib-del" onClick={() => pendBatch(sel, 'delete')}>Delete</button>
+          <button type="button" className="ns-chip" onClick={() => setSelected(new Set())}>Clear</button>
+          {newField('selection')}
+        </div>
+      )}
     </section>
   )
 }
