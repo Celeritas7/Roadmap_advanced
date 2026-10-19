@@ -5,11 +5,15 @@
 // With a folder chip picked: keep the whole folder, or move the folder
 // itself to the main list or into another folder.
 //
+// Phase 2: the four rules render as tag pills; tapping one opens a 44 px-row
+// picker (one open at a time, Esc/outside click closes). Cards are a title
+// row, optional links, then pills left / actions right.
+//
 // Phase 1 (review plan): Keep and Delete are one tap with Undo. The card
 // collapses to a strip for UNDO_MS; the write happens only when the strip
 // expires (or the view unmounts), so Undo is a plain cancel — no reverse
 // write. New folder is an inline field, not a prompt().
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import { MIRROR_TAG, PARKED_TAG } from '../../lib/rmHub.ts'
 import type { TaskRow } from '../../types.ts'
@@ -21,13 +25,21 @@ const PLACES: Choice[] = [
 ]
 const EFFORTS: Choice[] = [{ id: 'short-burst', label: 'quick' }, { id: '', label: 'medium' }, { id: 'deep-focus', label: 'deep' }]
 const DEVICES: Choice[] = [{ id: '', label: 'either' }, { id: 'keyboard', label: 'laptop' }, { id: 'phone-only', label: 'phone' }]
-const ENERGY: Choice[] = [{ id: '', label: 'any' }, { id: 'low-ok', label: 'fine when tired' }, { id: 'needs-energy', label: 'needs energy' }]
+const ENERGY: Choice[] = [{ id: '', label: 'any energy' }, { id: 'low-ok', label: 'fine when tired' }, { id: 'needs-energy', label: 'needs energy' }]
+type Family = { key: string; label: string; choices: Choice[]; ids: string[] }
+const FAMILIES: Family[] = [
+  { key: 'place', label: 'Where', choices: PLACES, ids: PLACES.map((c) => c.id).filter(Boolean) },
+  { key: 'effort', label: 'Effort', choices: EFFORTS, ids: EFFORTS.map((c) => c.id).filter(Boolean) },
+  { key: 'device', label: 'Device', choices: DEVICES, ids: DEVICES.map((c) => c.id).filter(Boolean) },
+  { key: 'energy', label: 'Energy', choices: ENERGY, ids: ENERGY.map((c) => c.id).filter(Boolean) },
+]
+// A link whose label says nothing ("link", "Link2", "hhh", "444") shows its host instead.
+const BLANK_LABEL = /^(link\d*|here|pc|launch|hhh|\d+)$/i
+export const linkLabel = (label: string, url: string): string => {
+  if (!BLANK_LABEL.test(label.trim())) return label
+  try { return new URL(url).host.replace(/^www\./, '') } catch { return label }
+}
 
-const ids = (cs: Choice[]) => cs.map((c) => c.id).filter(Boolean)
-const PLACE_IDS = ids(PLACES)
-const EFFORT_IDS = ids(EFFORTS)
-const DEVICE_IDS = ids(DEVICES)
-const ENERGY_IDS = ids(ENERGY)
 const NEW = '__new__'
 const TOP = '__top__'
 const UNDO_MS = 5000
@@ -54,6 +66,7 @@ export function InboxView() {
   const [pending, setPending] = useState<Map<string, Pending>>(new Map())
   const [newFor, setNewFor] = useState<NewFor>(null)
   const [live, setLive] = useState('')   // aria-live announcement
+  const [open, setOpen] = useState<{ id: string; key: string } | null>(null)   // the one open pill picker
 
   // Writes are deferred while a card shows its Undo strip. The ref mirrors
   // `pending` so the unmount cleanup can flush what's still waiting.
@@ -109,6 +122,15 @@ export function InboxView() {
     .filter((g) => (seen.has(g.path) ? false : (seen.add(g.path), true)))
 
   const set = (t: TaskRow, family: string[], v: string) => ok(updateTask(t.id, { tags: withPick(t, family, v) }))
+  // Close the open picker on an outside click or Esc.
+  useEffect(() => {
+    if (!open) return
+    const down = (e: MouseEvent) => { if (!(e.target as Element).closest('.ib-pill-wrap')) setOpen(null) }
+    const key = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') setOpen(null) }
+    document.addEventListener('mousedown', down)
+    document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key) }
+  }, [open])
   const endOf = (parent: string | null) => tree.filter((x) => x.parent_id === parent).length
   const reparent = (id: string, parent: string | null) => ok(updateTask(id, { parent_id: parent, position: endOf(parent) }))
   // A "Move to" pick: TOP → main list, NEW → open the inline field, else a folder id.
@@ -205,23 +227,31 @@ export function InboxView() {
               {resources.some((r) => r.task_id === t.id) && (
                 <div className="ib-links">
                   {resources.filter((r) => r.task_id === t.id).map((r) => (
-                    <a key={r.id} className="ns-link" href={r.url} target="_blank" rel="noreferrer">{r.label}</a>
+                    <a key={r.id} className="ns-link" href={r.url} target="_blank" rel="noreferrer">{linkLabel(r.label, r.url)}</a>
                   ))}
                 </div>
               )}
-              <div className="ib-rules">
-                <Rule label="At" value={pickOf(t, PLACE_IDS)} choices={PLACES} onPick={(v) => set(t, PLACE_IDS, v)} />
-                <Rule label="Effort" value={pickOf(t, EFFORT_IDS)} choices={EFFORTS} onPick={(v) => set(t, EFFORT_IDS, v)} />
-                <Rule label="On" value={pickOf(t, DEVICE_IDS)} choices={DEVICES} onPick={(v) => set(t, DEVICE_IDS, v)} />
-                <Rule label="Energy" value={pickOf(t, ENERGY_IDS)} choices={ENERGY} onPick={(v) => set(t, ENERGY_IDS, v)} />
-              </div>
-              <div className="ib-actions">
-                <button type="button" className="ns-chip on" onClick={() => pend(t, 'keep')}>Keep</button>
-                <select className="ns-sel ib-move" value="" onChange={(e) => onMove(t.id, e.target.value)} aria-label="Move to folder">
-                  <option value="">Move to…</option>
-                  {moveOptions(false)}
-                </select>
-                <button type="button" className="ns-chip ib-del" onClick={() => pend(t, 'delete')}>Delete</button>
+              <div className="ib-row">
+                <div className="ib-pills">
+                  {FAMILIES.map((f) => (
+                    <Pill
+                      key={f.key}
+                      family={f}
+                      value={pickOf(t, f.ids)}
+                      open={open?.id === t.id && open.key === f.key}
+                      onOpen={(o) => setOpen(o ? { id: t.id, key: f.key } : null)}
+                      onPick={(v) => { set(t, f.ids, v); setOpen(null) }}
+                    />
+                  ))}
+                </div>
+                <div className="ib-actions">
+                  <button type="button" className="ns-chip on" onClick={() => pend(t, 'keep')}>Keep</button>
+                  <select className="ns-sel ib-move" value="" onChange={(e) => onMove(t.id, e.target.value)} aria-label="Move to folder">
+                    <option value="">Move to…</option>
+                    {moveOptions(false)}
+                  </select>
+                  <button type="button" className="ns-chip ib-del" onClick={() => pend(t, 'delete')}>Delete</button>
+                </div>
               </div>
               {newField(t.id)}
             </li>
@@ -232,13 +262,52 @@ export function InboxView() {
   )
 }
 
-function Rule({ label, value, choices, onPick }: { label: string; value: string; choices: Choice[]; onPick: (v: string) => void }) {
+// A rule as a tag pill. Unset shows the family's default, muted. Tapping
+// opens a picker of 44 px rows; arrows move, Enter picks, Esc closes.
+function Pill({ family, value, open, onOpen, onPick }: {
+  family: Family; value: string; open: boolean; onOpen: (o: boolean) => void; onPick: (v: string) => void
+}) {
+  const cur = family.choices.find((c) => c.id === value) ?? family.choices[0]
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (open) (listRef.current?.querySelector('[aria-selected="true"]') as HTMLElement | null)?.focus()
+  }, [open])
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const items = [...(listRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
+    const i = items.indexOf(document.activeElement as HTMLElement)
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus() }
+    if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus() }
+  }
   return (
-    <label className="ib-rule">
-      <span className="ns-k">{label}</span>
-      <select className="ns-sel" value={value} onChange={(e) => onPick(e.target.value)}>
-        {choices.map((c) => <option key={c.id || 'none'} value={c.id}>{c.label}</option>)}
-      </select>
-    </label>
+    <span className="ib-pill-wrap">
+      <button
+        type="button"
+        className={'ib-pill' + (value ? ' set' : '')}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${family.label}: ${cur.label}`}
+        onClick={() => onOpen(!open)}
+      >
+        {cur.label}
+      </button>
+      {open && (
+        <div ref={listRef} className="ib-pop" role="listbox" aria-label={family.label} onKeyDown={onKey}>
+          <div className="ib-pop-h">{family.label}</div>
+          {family.choices.map((c) => (
+            <div
+              key={c.id || 'none'}
+              role="option"
+              tabIndex={-1}
+              aria-selected={c.id === cur.id}
+              className={'ib-opt' + (c.id === cur.id ? ' on' : '')}
+              onClick={() => onPick(c.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.id) } }}
+            >
+              {c.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
   )
 }
