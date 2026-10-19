@@ -12,7 +12,7 @@ const parked = async (id) => (await tree()).find((t) => t.id === id)?.tags.inclu
 
 await p.goto(base + '/scripts/harness/inbox.html')
 await p.waitForSelector('.ib-item')
-check('9 cards render', (await p.locator('.ib-item').count()) === 9)
+check('10 cards render', (await p.locator('.ib-item').count()) === 10)
 check('a blank link label shows the host', (await p.locator('.ib-links .ns-link').allTextContents()).join('|') === 'N3 goi|youtu.be')
 check('no native dialogs: Delete shows a strip', await (async () => {
   p.once('dialog', (d) => { fails.push('native dialog opened: ' + d.message()); d.dismiss() })
@@ -45,7 +45,8 @@ check('folder created at top level and task moved into it', !!nf && nf.parent_id
 // Mechanical's two items were kept/deleted above, so its chip is gone.
 check('emptied folder chip disappears', (await p.getByRole('button', { name: /^Mechanical/ }).count()) === 0)
 // Folder bar: Keep all → strips for every card in the folder
-await p.getByRole('button', { name: /^Japanese/ }).click()
+check('same-named folders get distinct chips', (await p.getByRole('button', { name: /^From OneNote › Japanese/ }).count()) === 1 && (await p.getByRole('button', { name: /^Languages › Japanese/ }).count()) === 1)
+await p.getByRole('button', { name: /^From OneNote › Japanese/ }).click()
 check('folder chip filters', (await p.locator('.ib-item').count()) === 1)
 await p.getByRole('button', { name: /Keep all/ }).click()
 check('Keep all strips every shown card', (await p.locator('.ib-strip.keep').count()) === 1)
@@ -85,7 +86,7 @@ check('Select all selects 5', (await p.locator('.ib-item.sel').count()) === 5)
 await p.locator('.ib-bar').getByLabel('Move selected to folder').selectOption({ label: 'Languages › Japanese' })
 const moved = (await tree()).filter((t) => t.id.startsWith('h') && t.parent_id === 'lang-ja').length
 check('Move to moves all 5 in one batch', moved === 5 && (await p.evaluate(() => window.batchCalls)) === 2)
-await p.getByRole('button', { name: /^Japanese/ }).first().click()
+await p.getByRole('button', { name: /^Languages › Japanese/ }).click()
 await p.getByRole('button', { name: /^All \d/ }).click()
 await home('Cook rice').getByRole('checkbox').click()
 await home('Make curry').getByRole('checkbox').click()
@@ -134,6 +135,22 @@ await p.evaluate(() => window.rmStore.setState({ resources: [...window.rmStore.g
 check('sort "with links first" puts a linked item on top', (await p.locator('.ib-item').first().locator('.ib-links').count()) === 1)
 check('sort "with links first" orders linked before unlinked', await p.locator('.ib-item').evaluateAll((els) => { const f = els.map((e) => !!e.querySelector('.ib-links')); return f.indexOf(false) === -1 || f.lastIndexOf(true) < f.indexOf(false) }))
 await p.getByLabel('Sort').selectOption('folder')
+
+// Phase 4b: stale badge; Keep clears stale and marks kept. Earlier review
+// steps may have acted on t5, so put it back in its stale state first.
+await p.evaluate(() => {
+  const s = window.rmStore.getState()
+  const base = s.tree.find((t) => t.id === 't5') ?? { ...s.tree.find((t) => t.id === 't1'), id: 't5', title: 'Back from last month', parent_id: 'lang-ja' }
+  window.rmStore.setState({ tree: [...s.tree.filter((t) => t.id !== 't5'), { ...base, tags: ['kept', 'parked', 'stale'] }] })
+})
+const st = p.locator('.ib-item', { hasText: 'Back from last month' })
+check('stale item shows its badge', (await st.locator('.ib-stale').count()) === 1)
+await st.getByRole('button', { name: 'Keep' }).click()
+await p.waitForTimeout(5400)
+const t5 = (await tree()).find((t) => t.id === 't5')
+check('Keep clears parked + stale, keeps one kept tag', !t5.tags.includes('parked') && !t5.tags.includes('stale') && t5.tags.filter((x) => x === 'kept').length === 1)
+const t3k = (await tree()).find((t) => t.id === 't3')
+check('a plain Keep marks the task kept', t3k.tags.includes('kept'))
 
 await p.screenshot({ path: 'scripts/harness/inbox.png', fullPage: true })
 await b.close()

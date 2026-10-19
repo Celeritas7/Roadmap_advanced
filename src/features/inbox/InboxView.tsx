@@ -29,6 +29,7 @@ import { useStore } from '../../store/useStore.ts'
 import { MIRROR_TAG, PARKED_TAG } from '../../lib/rmHub.ts'
 import { dayKey } from '../../lib/dailyReset.ts'
 import { readCheckin, resolvePlace } from '../../lib/suggester.ts'
+import { KEPT_TAG, STALE_DAYS, STALE_TAG } from '../../lib/stale.ts'
 import type { TaskRow } from '../../types.ts'
 
 type Choice = { id: string; label: string }
@@ -114,9 +115,12 @@ export function InboxView() {
     const t = treeRef.current.find((x) => x.id === id)
     if (!t) return
     if (kind === 'delete') ok(deleteTask(id))
-    else ok(updateTask(id, { tags: t.tags.filter((x) => x !== PARKED_TAG) }))
+    else ok(updateTask(id, keptTags(t)))
   }
-  const unpark = (t: TaskRow) => ({ id: t.id, patch: { tags: t.tags.filter((x) => x !== PARKED_TAG) } })
+  // Keep = unpark, drop any stale mark, and remember it came through the Inbox
+  // (KEPT_TAG) so stale recall can bring it back if it goes untouched.
+  const keptTags = (t: TaskRow) => ({ tags: [...t.tags.filter((x) => x !== PARKED_TAG && x !== STALE_TAG && x !== KEPT_TAG), KEPT_TAG] })
+  const unpark = (t: TaskRow) => ({ id: t.id, patch: keptTags(t) })
   const commitBatch = (ids: string[], kind: PendingKind) => {
     const rows = ids.map((id) => treeRef.current.find((x) => x.id === id)).filter((t): t is TaskRow => !!t)
     if (!rows.length) return
@@ -177,6 +181,14 @@ export function InboxView() {
   const pathOf = (g: TaskRow): string => (g.parent_id && byId.get(g.parent_id) ? pathOf(byId.get(g.parent_id)!) + ' › ' : '') + g.title
   const folderIds = [...new Set(items.map((t) => t.parent_id ?? ''))]
   const count = (fid: string) => items.filter((t) => (t.parent_id ?? '') === fid).length
+  // Chip label: the folder's name, or "Parent › Name" when two inbox folders share a name.
+  const chipLabel = (fid: string) => {
+    const g = fid ? byId.get(fid) : undefined
+    if (!g) return '—'
+    const clash = folderIds.some((o) => o !== fid && titleOf(o || null) === g.title)
+    const parent = g.parent_id ? byId.get(g.parent_id) : undefined
+    return clash && parent ? `${parent.title} › ${g.title}` : g.title
+  }
   const hasLinks = new Set(resources.map((r) => r.task_id))
   const order: Record<SortKey, (a: TaskRow, b: TaskRow) => number> = {
     folder: (a, b) => titleOf(a.parent_id).localeCompare(titleOf(b.parent_id)) || a.position - b.position,
@@ -342,7 +354,7 @@ export function InboxView() {
           <button type="button" className={'vchip' + (folder === 'all' ? ' on' : '')} aria-pressed={folder === 'all'} onClick={() => setFolder('all')}>All <span className="n">{items.length}</span></button>
           {folderIds.map((fid) => (
             <button key={fid} type="button" className={'vchip' + (folder === fid ? ' on' : '')} aria-pressed={folder === fid} onClick={() => setFolder(fid)}>
-              {titleOf(fid || null)} <span className="n">{count(fid)}</span>
+              {chipLabel(fid)} <span className="n">{count(fid)}</span>
             </button>
           ))}
         </div>
@@ -440,6 +452,7 @@ export function InboxView() {
                   aria-label={`Select ${t.title}`}
                 />
                 <span className="ib-name">{t.title}</span>
+                {t.tags.includes(STALE_TAG) && <span className="ib-stale" title={`Kept, then untouched for ${STALE_DAYS}+ days`}>back · untouched {STALE_DAYS}d</span>}
                 {folder === 'all' && <span className="ib-folder">{titleOf(t.parent_id)}</span>}
               </div>
               {resources.some((r) => r.task_id === t.id) && (
@@ -568,6 +581,7 @@ function ReviewCard({ t, pos, total, folder, links, pills, onKeep, onDelete, onS
         <span>Right now: {where.src === 'none' ? 'place unknown' : where.label} · energy {energy}</span>
       </div>
       <h3 className="ib-rv-title">{t.title}</h3>
+      {t.tags.includes(STALE_TAG) && <span className="ib-stale">Kept, then untouched for {STALE_DAYS}+ days — still worth it?</span>}
       {links.length > 0 && (
         <div className="ib-links">
           {links.map((r) => <a key={r.id} className="ns-link" href={r.url} target="_blank" rel="noreferrer">{linkLabel(r.label, r.url)}</a>)}
