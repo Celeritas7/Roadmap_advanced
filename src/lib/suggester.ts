@@ -247,8 +247,13 @@ function ranked(pool: SuggestTask[], ctx: SuggestCtx): SuggestTask[] {
     const k = locks.get(categoryOf(t.addr.item_key))
     return !k || k === t.addr.item_key
   }
-  const tier = (t: SuggestTask) => (turn.has(t) ? 0 : keepsLock(t) ? 1 : 2)
-  return doable.sort((a, b) => tier(a) - tier(b) || score(b, ctx) - score(a, ctx))
+  // Energy rule (Inbox · tags low-ok / needs-energy): when tired, a
+  // needs-energy task drops to the last tier and a low-ok one gets a lift.
+  const tired = ctx.energy === 'low'
+  const tier = (t: SuggestTask) =>
+    (turn.has(t) ? 0 : keepsLock(t) ? 1 : 2) + (tired && t.ctx.includes('@needs-energy') ? 3 : 0)
+  const lift = (t: SuggestTask) => score(t, ctx) + (tired && t.ctx.includes('@low-ok') ? 5 : 0)
+  return doable.sort((a, b) => tier(a) - tier(b) || lift(b) - lift(a))
 }
 
 /** Home's "doable here" list. Uses the history from the last pick. */

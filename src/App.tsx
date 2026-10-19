@@ -20,6 +20,7 @@ import { DebugTimeSlider } from './features/debug/DebugTimeSlider.tsx'
 import { onWfAuthChange, wfAuthState, type WfAuthState } from './lib/wfAuth.ts'
 import { bootHub } from './lib/rmHub.ts'
 import { NowStrip } from './features/home/NowStrip.tsx'
+import { InboxView } from './features/inbox/InboxView.tsx'
 
 const search = new URLSearchParams(window.location.search)
 const planParam = search.get('plan')
@@ -148,6 +149,8 @@ export default function App() {
                   <NowStrip />
                   <HomeView />
                 </>
+              ) : view === 'inbox' ? (
+                <InboxView />
               ) : (
                 <PlanFolders />
               )}

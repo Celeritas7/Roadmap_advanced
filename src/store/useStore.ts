@@ -31,7 +31,7 @@ import { markDone } from '../lib/suggester.ts'
 
 export type ThemeName = 'trailhead' | 'summit' | 'fieldguide'
 
-export type ViewName = 'home' | 'plan'
+export type ViewName = 'home' | 'plan' | 'inbox'
 
 export type StoreState = {
   // Server-mirrored
