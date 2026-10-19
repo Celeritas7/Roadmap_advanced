@@ -17,8 +17,6 @@ import type {
   TaskUpdate,
   UserSettings,
 } from '../types.ts'
-import { supabase } from '../lib/supabase.ts'
-import { seedIfEmpty } from '../seed.ts'
 import { subtreeIds } from '../lib/tree.ts'
 import { activeRoleIds, isRoleActive, effectiveRoleId, folderProgress, nextAction } from './selectors.ts'
 import * as sync from './sync.ts'
@@ -157,7 +155,11 @@ export const useStore = create<StoreState>((set, get) => ({
     if (get().initialized) return
     set({ initialized: true })
     try {
-      await seedIfEmpty(supabase)
+      // No auto-seed. seedIfEmpty decided "new user" from an RLS-scoped
+      // count, so any moment where the user's own rows were invisible (on
+      // 2026-10-03 the real-gate cutover: owner-only policies live, old rows
+      // not yet backfilled to this user) wrote a second demo tree and demo
+      // logs into a live account. Seed only by an explicit action.
       const [tree, log, settings, resources] = await Promise.all([
         sync.fetchTasks(),
         sync.fetchLogs(),
