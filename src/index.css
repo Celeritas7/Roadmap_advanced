@@ -1478,3 +1478,28 @@ body {
 .ib-new{display:flex;flex-wrap:wrap;align-items:center;gap:8px;width:100%}
 .ib-input{flex:1 1 180px;min-height:32px;padding:6px 10px;font:inherit;font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--rule-strong);border-radius:var(--rad-sm)}
 .ib-input:focus{outline:2px solid var(--accent);outline-offset:1px}
+
+/* Inbox · phase 2: tag pills + picker, compact rows, contrast, chip strip */
+.ib-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px}
+.ib-pills{display:flex;flex-wrap:wrap;gap:6px}
+.ib-pill-wrap{position:relative;display:inline-block}
+.ib-pill{appearance:none;min-height:32px;padding:5px 11px;font:inherit;font-size:12.5px;color:var(--ink-3);background:var(--panel-2);border:1px solid var(--rule);border-radius:999px;cursor:pointer}
+.ib-pill.set{color:var(--ink);border-color:var(--rule-strong);background:var(--panel)}
+.ib-pill:hover,.ib-pill[aria-expanded="true"]{border-color:var(--accent);color:var(--ink)}
+.ib-pill:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ib-pop{position:absolute;z-index:20;top:calc(100% + 4px);left:0;min-width:180px;padding:4px;background:var(--panel);border:1px solid var(--rule-strong);border-radius:var(--rad-sm);box-shadow:0 10px 30px rgba(0,0,0,.14)}
+.ib-pop-h{padding:6px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2)}
+.ib-opt{display:flex;align-items:center;min-height:44px;padding:0 12px;font-size:13.5px;color:var(--ink);border-radius:7px;cursor:pointer}
+.ib-opt:hover,.ib-opt:focus-visible{background:var(--hover);outline:none}
+.ib-opt.on{color:var(--accent);font-weight:600}
+.ib-item{gap:6px}
+.ib-folder,.inbox .ns-note{color:var(--ink-2)}
+.inbox .vchip .n{color:var(--ink-2)}
+.ib-actions .ns-chip{min-height:36px}
+@media (max-width:720px){
+  .ib-folders{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-right:24px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+  .ib-folders::-webkit-scrollbar{display:none}
+  .ib-folders .vchip{flex:none}
+  .ib-pill,.ib-actions .ns-chip,.ib-actions .ns-sel{min-height:44px}
+  .ib-actions{width:100%;justify-content:space-between}
+}

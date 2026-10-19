@@ -25,7 +25,10 @@ const tree: TaskRow[] = [
 let n = 0
 useStore.setState({
   tree,
-  resources: [{ id: 'r1', task_id: 't2', label: 'N3 goi', url: 'https://1drv.ms/x', kind: 'web', position: 0, created_at: '' }],
+  resources: [
+    { id: 'r1', task_id: 't2', label: 'N3 goi', url: 'https://1drv.ms/x', kind: 'web', position: 0, created_at: '' },
+    { id: 'r2', task_id: 't2', label: 'Link2', url: 'https://youtu.be/abc', kind: 'web', position: 1, created_at: '' },
+  ],
   updateTask: async (id: string, patch: TaskUpdate) => {
     useStore.setState({ tree: useStore.getState().tree.map((t) => (t.id === id ? { ...t, ...patch } : t)) })
   },
