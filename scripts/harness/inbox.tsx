@@ -21,6 +21,7 @@ const tree: TaskRow[] = [
   row('t2', 'Goi practice sheets', 'f-ja', 'task', ['train', 'parked'], 1),
   row('t3', 'Python code for mechanical calculations', 'f-mech', 'task', ['keyboard', 'deep-focus', 'parked']),
   row('t4', 'Sheet metal: get the transcript', 'f-mech', 'task', ['keyboard', 'parked'], 1),
+  row('t5', 'Back from last month', 'lang-ja', 'task', ['kept', 'parked', 'stale']),
   row('f-home', 'Home, food & cleaning', 'inbox', 'group', ['food'], 2),
   ...['Wash clothes', 'Cook rice', 'Make curry', 'Clean the fridge', 'Throw the gomi'].map((t, i) =>
     row('h' + i, t, 'f-home', 'task', ['parked'], i)),

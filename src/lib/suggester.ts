@@ -8,6 +8,7 @@ import { dayKey, prevDayKey } from './dailyReset.ts'
 import * as sessionSync from '../store/studySessions.ts'
 import { activeRoleIds, effectiveRoleId } from '../store/selectors.ts'
 import { categoryOf, lockedSlots, rotate, type Served } from './rotation.ts'
+import { STALE_TAG, staleIds } from './stale.ts'
 import { MIRROR_TAG, PARKED_TAG, addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, hubWhere, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
 import { PROJECT_BY_ID } from '../seed.ts'
 import type { AkBanner, Device, Energy, PlaceSource, RmHubInstance, SuggestCtx, SuggestTask, TaskRow, WfAddr } from '../types.ts'
@@ -268,6 +269,20 @@ async function latestRow(): Promise<SuggestionRow | null> {
   if (error) throw error
   return data as SuggestionRow | null
 }
+// Stale recall, once per logical day: Inbox-kept tasks untouched for 30 days
+// are parked again with a `stale` mark (see lib/stale.ts).
+const K_STALE_DAY = 'rm-stale-day'
+function recallStale() {
+  if (!store) return
+  try { if (localStorage.getItem(K_STALE_DAY) === dayKey()) return } catch { /* no storage: run */ }
+  const s = store.getState()
+  const ids = new Set(staleIds(s.tree, served))
+  try { localStorage.setItem(K_STALE_DAY, dayKey()) } catch { /* ignore */ }
+  if (!ids.size) return
+  const patches = s.tree.filter((t) => ids.has(t.id)).map((t) => ({ id: t.id, patch: { tags: [...t.tags, PARKED_TAG, STALE_TAG] } }))
+  void s.updateTasks(patches).catch((e: Error) => console.warn('[ak] stale recall', e.message))
+}
+
 // Fair-rotation input: when each WF item was last started or done.
 const SERVED_DAYS = 120
 async function servedHistory(): Promise<Served[]> {
@@ -305,6 +320,7 @@ export async function tick(): Promise<void> {
   try {
     await refreshTags()
     served = await servedHistory()
+    recallStale()
     const now = Date.now()
     let prev = await latestRow()
     if (prev && isLive(prev, now)) {
