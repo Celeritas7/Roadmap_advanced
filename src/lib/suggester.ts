@@ -90,7 +90,10 @@ export function readPlace(): string {
   if (v === 'anywhere' || v === 'auto' || !list.length) return v   // places not loaded yet: keep the pick
   const hit = list.find((p) => p.id === v) ?? hubInstance()?.hub.matchPlace(list, v) ?? list.find((p) => p.class === v)
   const id = hit ? hit.id : 'anywhere'
-  if (id !== v) localStorage.setItem(K_PLACE, id)   // also clears a retired pick
+  if (id !== v) {   // retired or unknown pick: drop it and its time, so the hub decides again
+    localStorage.setItem(K_PLACE, id)
+    localStorage.removeItem(K_PLACE_AT)
+  }
   return id
 }
 /** 'auto' clears the override (the hub decides again). Anything else, 'anywhere' included, is a timed pick. */
@@ -209,6 +212,7 @@ function nativeCandidates(tree: TaskRow[]): SuggestTask[] {
       parked: r.tags.includes(PARKED_TAG), deleted: false,
       ctx: r.tags.map((t) => '@' + t),
       effort: r.tags.includes('short-burst') ? 'quick' : r.tags.includes('deep-focus') ? 'deep' : 'medium',
+      urg: r.tags.includes('high'),   // the adapter's score adds the same +6 it gives WF's urgent flag
       place_class: r.tags.map((t) => PLACE_OF_TAG[t]).find(Boolean) ?? null,
       level: project ? levelOfProject(project) : null,
     })
@@ -239,9 +243,10 @@ function candidates(): SuggestTask[] {
 // that keep today's one-slot-per-category, then the rest. The tail is what
 // lets a low-priority task lead when nothing ahead of it can be done.
 function ranked(pool: SuggestTask[], ctx: SuggestCtx): SuggestTask[] {
-  const score = window.RmHub.score
   const stuck = readStuck()
-  const doable = pool.filter((t) => score(t, ctx) > -Infinity && fits(t, stuck))
+  const scores = new Map(pool.map((t) => [t, window.RmHub.score(t, ctx)]))
+  const score = (t: SuggestTask) => scores.get(t) ?? -Infinity
+  const doable = pool.filter((t) => score(t) > -Infinity && fits(t, stuck))
   const turn = new Set(rotate(doable, ctx, served, score))
   const locks = lockedSlots(served)
   const keepsLock = (t: SuggestTask) => {
@@ -253,7 +258,7 @@ function ranked(pool: SuggestTask[], ctx: SuggestCtx): SuggestTask[] {
   const tired = ctx.energy === 'low'
   const tier = (t: SuggestTask) =>
     (turn.has(t) ? 0 : keepsLock(t) ? 1 : 2) + (tired && t.ctx.includes('@needs-energy') ? 3 : 0)
-  const lift = (t: SuggestTask) => score(t, ctx) + (tired && t.ctx.includes('@low-ok') ? 5 : 0)
+  const lift = (t: SuggestTask) => score(t) + (tired && t.ctx.includes('@low-ok') ? 5 : 0)
   return doable.sort((a, b) => tier(a) - tier(b) || lift(b) - lift(a))
 }
 
@@ -391,7 +396,7 @@ export async function onAnswer(p: Record<string, unknown>, fromApp: string, seq:
   const sid = String(p.suggestion_id ?? '')
   const action = String(p.action ?? '')
   const reason = typeof p.reason === 'string' && p.reason.trim() ? p.reason.trim() : null
-  if (!sid || !action) throw new Error('suggestion.answered without suggestion_id/action')   // malformed → rejected
+  if (!sid || !action) { console.warn('[ak] suggestion.answered without suggestion_id/action — ignored', seq); return }   // no throw under R026 (see rmHub.onTask)
 
   const { error: le } = await supabase
     .from('roadmap_suggestion_answers')
@@ -420,7 +425,12 @@ export async function onAnswer(p: Record<string, unknown>, fromApp: string, seq:
 
 /** WF confirmed a done. Closes the suggestion it answered (tone resets). */
 export async function markDone(rmId: string, sid: string | null): Promise<void> {
-  const id = sid ?? (latest && latest.rm_task_id === rmId ? latest.id : null)
+  let id = sid ?? (latest && latest.rm_task_id === rmId ? latest.id : null)
+  if (!id) {
+    // `latest` lives only in the leader tab; any tab may tick a task done.
+    const row = await latestRow().catch(() => null)
+    if (row && row.rm_task_id === rmId && isLive(row, Date.now())) id = row.id
+  }
   if (!id) return
   const { error } = await supabase.from('roadmap_suggestions').update({ done_at: new Date().toISOString() }).eq('id', id).is('done_at', null)
   if (error) console.warn('[ak] markDone', error.message)

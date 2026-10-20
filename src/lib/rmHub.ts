@@ -143,7 +143,11 @@ async function onTask(addr: WfAddr, p: Record<string, unknown>, seq: number): Pr
       lastSeq.set(k, seq)
       return null
     }
-    if (!title) throw new Error('task.upsert without a title')   // malformed → rejected
+    // Malformed. Under R026 a thrown handler is deferred and retried for
+    // ever, and rm-adapter.js passes only { defer } through — so ack it with
+    // nothing created (the hub records applied, not rejected; STEP7 §E asks
+    // for a { reject } pass-through).
+    if (!title) { console.warn('[ak] task.upsert without a title — ignored', k, seq); lastSeq.set(k, seq); return null }
     const parent = await folderFor(project)
     const created = await sync.insertTask({
       parent_id: parent,
@@ -182,7 +186,7 @@ async function tagOrphan(rmId: string) {
 // stream instead of the study app calling the RPC.
 async function onSession(p: Record<string, unknown>): Promise<void> {
   const taskId = (p.task_id ?? p.taskId) as string | undefined
-  if (!taskId) throw new Error('session.completed without task_id')
+  if (!taskId) { console.warn('[ak] session.completed without task_id — ignored'); return }   // see onTask: no throw under R026
   const { error } = await supabase.rpc('roadmap_complete_session', {
     p_task_id: taskId,
     p_source: String(p.source ?? p.app ?? 'stream'),

@@ -107,7 +107,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="st-foot">
             <span className={'st-dirty' + (places.blankIds.length ? ' warn' : '')}>{footText}</span>
-            <button type="button" className="st-btn" onClick={onClose}>Cancel</button>
+            <button type="button" className="st-btn" onClick={close}>Cancel</button>
             <button
               type="button"
               className="st-btn pri"

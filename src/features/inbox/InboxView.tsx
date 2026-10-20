@@ -46,6 +46,7 @@ const FAMILIES: Family[] = [
   { key: 'effort', label: 'Effort', choices: EFFORTS, ids: EFFORTS.map((c) => c.id).filter(Boolean) },
   { key: 'device', label: 'Device', choices: DEVICES, ids: DEVICES.map((c) => c.id).filter(Boolean) },
   { key: 'energy', label: 'Energy', choices: ENERGY, ids: ENERGY.map((c) => c.id).filter(Boolean) },
+  { key: 'priority', label: 'Priority', choices: [{ id: '', label: 'normal' }, { id: 'high', label: 'high priority' }], ids: ['high'] },
 ]
 // A link whose label says nothing ("link", "Link2", "hhh", "444") shows its host instead.
 const BLANK_LABEL = /^(link\d*|here|pc|launch|hhh|\d+)$/i

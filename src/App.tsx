@@ -21,6 +21,7 @@ import { onWfAuthChange, wfAuthState, type WfAuthState } from './lib/wfAuth.ts'
 import { bootHub } from './lib/rmHub.ts'
 import { NowStrip } from './features/home/NowStrip.tsx'
 import { InboxView } from './features/inbox/InboxView.tsx'
+import { CaptureSheet } from './features/capture/CaptureSheet.tsx'
 
 const search = new URLSearchParams(window.location.search)
 const planParam = search.get('plan')
@@ -62,6 +63,23 @@ export default function App() {
   useEffect(() => {
     if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)
   }, [auth, loading, error])
+
+  // Quick capture: `?capture` opens the sheet once the store is loaded (a
+  // home-screen shortcut); `c` opens it from anywhere, except while typing.
+  const ready = auth === 'signed-in' && !loading
+  useEffect(() => {
+    if (!ready) return
+    if (search.has('capture')) useStore.getState().setCaptureOpen(true)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return
+      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
+      if (useStore.getState().captureOpen || document.querySelector('[role="dialog"]')) return
+      e.preventDefault()
+      useStore.getState().setCaptureOpen(true)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [ready])
 
   useNow()
   
@@ -112,6 +130,7 @@ export default function App() {
   return (
     <div className="rm" data-theme={theme} data-role={role}>
       <div className="rm-scroll">
+        {ready && !loadFailed && <CaptureSheet />}
         <header className="rm-header">
           <Header />
           {view !== 'home' && <RolesTier />}
