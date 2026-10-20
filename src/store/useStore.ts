@@ -26,6 +26,7 @@ import { isDaily, dayKey, prevDayKey } from '../lib/dailyReset.ts'
 import { readStoredRoadView, storeRoadView, type RoadViewId } from '../features/home/roadViews.ts'
 import { hubAddrOf, tickMirror } from '../lib/rmHub.ts'
 import { markDone } from '../lib/suggester.ts'
+import { CAPTURE_ROOT, guessCapture } from '../lib/capture.ts'
 
 export type ThemeName = 'trailhead' | 'summit' | 'fieldguide'
 
@@ -71,7 +72,12 @@ export type StoreState = {
   // Mutations
   init: () => Promise<void>
   toggleTask: (id: string) => Promise<void>
-  addTask: (parentId: string | null, title: string, tags?: string[]) => Promise<void>
+  addTask: (parentId: string | null, title: string, tags?: string[]) => Promise<string>
+  // Quick capture: one line → a parked task under Captured › <guessed folder>.
+  // Resolves to the new task's id (for Undo), or null for a blank line.
+  capture: (line: string) => Promise<{ id: string; folder: string } | null>
+  captureOpen: boolean
+  setCaptureOpen: (open: boolean) => void
   addFolder: (parentId: string | null, title: string, tags?: string[]) => Promise<string>
   updateTask: (id: string, patch: TaskUpdate) => Promise<void>
   deleteTask: (id: string) => Promise<void>
@@ -267,11 +273,24 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const row = await sync.insertTask(input)
       set({ tree: [...get().tree, row] })
+      return row.id
     } catch (e) {
       set({ error: errorMessage(e) })
       throw e
     }
   },
+
+  captureOpen: false,
+  setCaptureOpen: (open) => set({ captureOpen: open }),
+
+  // Captures run one at a time, so two quick Enters can't both create the
+  // Captured root or the same sub-folder.
+  capture: (line) => {
+    const run = captureChain.then(() => doCapture(line))
+    captureChain = run.catch(() => undefined)
+    return run
+  },
+
 
   addFolder: async (parentId, title, tags = []) => {
     const siblings = get().tree.filter((t) => t.parent_id === parentId)
@@ -539,4 +558,20 @@ async function runDailyReset(
   } catch {
     /* optimistic state already unchecked; the next minute tick retries */
   }
+}
+
+// Quick-capture worker (see StoreState.capture); kept outside the store
+// object so capture() can chain calls through captureChain.
+let captureChain: Promise<unknown> = Promise.resolve()
+async function doCapture(line: string): Promise<{ id: string; folder: string } | null> {
+  const get = useStore.getState
+  const g = guessCapture(line)
+  if (!g) return null
+  const groupOf = (parent: string | null, title: string) =>
+    get().tree.find((t) => t.kind === 'group' && t.parent_id === parent && t.title === title)?.id
+  // The root carries the `inbox` tag so the Inbox treats it as its own.
+  const root = groupOf(null, CAPTURE_ROOT) ?? await get().addFolder(null, CAPTURE_ROOT, ['inbox'])
+  const folder = groupOf(root, g.folder) ?? await get().addFolder(root, g.folder, g.folderTags)
+  const id = await get().addTask(folder, g.title, [...g.tags, 'parked'])
+  return { id, folder: g.folder }
 }

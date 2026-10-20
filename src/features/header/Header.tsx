@@ -17,6 +17,7 @@ export function Header() {
   const view = useStore((s) => s.view)
   const setView = useStore((s) => s.setView)
   const inboxCount = useStore((s) => s.tree.filter(isInboxItem).length)
+  const setCaptureOpen = useStore((s) => s.setCaptureOpen)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const today = new Date()
@@ -65,6 +66,15 @@ export function Header() {
       <div className="rm-meta">
         <span className="rm-datepill">{pill}</span>
         <span className="rm-week">{week}</span>
+        <button
+          type="button"
+          className="rm-capture"
+          title="Quick capture (c)"
+          aria-haspopup="dialog"
+          onClick={() => setCaptureOpen(true)}
+        >
+          ＋<span className="rm-capture-l"> Capture</span>
+        </button>
         <WeeklySync />
         {/* V2-V: the theme switcher moved into Settings · Appearance. */}
         <button

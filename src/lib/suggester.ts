@@ -209,6 +209,7 @@ function nativeCandidates(tree: TaskRow[]): SuggestTask[] {
       parked: r.tags.includes(PARKED_TAG), deleted: false,
       ctx: r.tags.map((t) => '@' + t),
       effort: r.tags.includes('short-burst') ? 'quick' : r.tags.includes('deep-focus') ? 'deep' : 'medium',
+      urg: r.tags.includes('high'),   // the adapter's score adds the same +6 it gives WF's urgent flag
       place_class: r.tags.map((t) => PLACE_OF_TAG[t]).find(Boolean) ?? null,
       level: project ? levelOfProject(project) : null,
     })
