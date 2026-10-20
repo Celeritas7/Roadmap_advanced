@@ -73,7 +73,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return
       if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
-      if (useStore.getState().captureOpen) return
+      if (useStore.getState().captureOpen || document.querySelector('[role="dialog"]')) return
       e.preventDefault()
       useStore.getState().setCaptureOpen(true)
     }

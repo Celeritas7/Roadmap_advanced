@@ -77,7 +77,7 @@ check('Set rule tags all 4 in one batch call', homeTagged === 4 && (await p.eval
 check('selection survives Set rule', (await p.locator('.ib-item.sel').count()) === 4)
 await p.locator('.ib-bar').getByRole('button', { name: 'Delete' }).click()
 check('one batch strip replaces 4 cards', (await p.locator('.ib-strip.delete').count()) === 1 && (await p.locator('.ib-strip-t').first().textContent()) === '4 items')
-check('nothing deleted yet', ['h0', 'h1', 'h2', 'h3'].every((id) => true) && (await tree()).filter((t) => t.id.startsWith('h')).length === 5)
+check('nothing deleted yet', await (async () => { const ids = new Set((await tree()).map((t) => t.id)); return ['h0', 'h1', 'h2', 'h3', 'h4'].every((id) => ids.has(id)) })())
 check('selection cleared, bar gone', (await p.locator('.ib-bar').count()) === 0)
 await p.locator('.ib-strip.delete').getByRole('button', { name: 'Undo' }).click()
 check('Undo brings all 4 back', (await p.locator('.ib-item').count()) === 5)

@@ -328,7 +328,9 @@ export const useStore = create<StoreState>((set, get) => ({
       const fresh = new Map(rows.map((r) => [r.id, r]))
       set({ tree: get().tree.map((t) => fresh.get(t.id) ?? t) })
     } catch (e) {
-      set({ tree: prev, error: errorMessage(e) })
+      // Some rows may already be saved: re-read the truth rather than guess.
+      try { set({ tree: await sync.fetchTasks(), error: errorMessage(e) }) }
+      catch { set({ tree: prev, error: errorMessage(e) }) }
       throw e
     }
   },

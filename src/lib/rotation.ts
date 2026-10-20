@@ -13,7 +13,8 @@
 //  4. Ties at either level go to the higher priority (best task score).
 //  5. A category or slot with nothing doable right now is passed over and
 //     keeps its place in the queue.
-// RmHub.pick then takes the highest-priority task inside the chosen slot.
+// suggester.ranked() then orders the chosen slot by score (with the energy
+// lift) and takes the first; RmHub.pick is no longer on this path.
 import { dayKey } from './dailyReset.ts'
 import type { SuggestCtx, SuggestTask, WfAddr } from '../types.ts'
 

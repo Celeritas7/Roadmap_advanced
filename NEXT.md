@@ -3,7 +3,7 @@
 Open threads with the hub, newest first. Close an item by moving it to *Log*.
 
 ## Open questions for Akatsuki
-- **STEP7 — shopping through Cost, capture from WF** (`handoff/REQUEST-STEP7-shopping-capture.md`, 2026-10-20). Asks routes `rm → cost purchase_request`, `cost → rm purchase_reply`, read of `akatsuki_purchases`, and a new kind `wf → rm inbox.add`; four questions inside. Blocks Roadmap phases 7–8.
+- **STEP7 — shopping through Cost, capture from WF** (`handoff/REQUEST-STEP7-shopping-capture.md`, 2026-10-20). Asks routes `rm → cost purchase_request`, `cost → rm purchase_reply`, read of `akatsuki_purchases`, and a new kind `wf → rm inbox.add`; four questions inside, plus §E: let `rm-adapter.js` pass `{ reject }` through (R026). Blocks Roadmap phases 7–8.
 - **Where is WF's `when` exposed to Roadmap?** STEP6 says "this week / all" should filter on `when` (WF's due date), but neither `task.upsert` payloads as mirrored nor `akatsuki_task_tags` rows carry it today. Is it (a) a field on the tag row, (b) a field on `task.upsert` we should store, or (c) a new hub read? Blocks the week toggle.
 
 ## Waiting on the hub

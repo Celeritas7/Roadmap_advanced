@@ -39,6 +39,9 @@ For WF's own "＋ capture" box. Roadmap owns the item.
 - Malformed (empty `text`) → Roadmap returns `{ reject }`, per R026.
 - **Optional:** a read-only count for WF ("N in Roadmap inbox"). Your call whether that's a view or a doc.
 
+## E · `rm-adapter.js`: pass `{ reject }` through (R026 follow-up)
+Since R026 a handler that *throws* is deferred and retried for ever, and `rm-adapter.js` forwards only `{ defer }` from Roadmap's callbacks (`passDefer`). A malformed row (empty-title `task.upsert`, `session.completed` without `task_id`, `suggestion.answered` without an id) can therefore only be acked as *applied*; Roadmap now does that with a warning instead of throwing. Please let the three wrappers pass `{ reject: 'reason' }` through as they pass `{ defer }`, so such rows are recorded as rejected.
+
 ## What Roadmap needs back
 1. Routes A, B, C (and D) registered, with the vocab for Cost categories and reply statuses.
 2. `rm-adapter.js` additions — suggested names, rename freely: `sendPurchase(task, items)`, `purchases()`, a `purchase_reply` reader, and an `onInboxAdd` handler slot.
