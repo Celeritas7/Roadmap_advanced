@@ -2,7 +2,7 @@
 // "All roadmaps · overview" grid under the Home road: one card per language
 // (JP/CN/MM) then one per non-lang project with tasks. Each card: progress
 // bar + a mini road of the next 3 open stops (check + ↗ launch) + jump link.
-import type { CSSProperties } from 'react'
+import { useMemo, type CSSProperties } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import { PROJECTS, PROJECT_BY_ID } from '../../seed.ts'
 import { LANGS, taskLang } from '../plan/langMeta.ts'
@@ -10,6 +10,7 @@ import { buildTree, type TreeNode } from '../../lib/tree.ts'
 import type { TaskRow } from '../../types.ts'
 import { LaunchPopover } from '../plan/LaunchPopover.tsx'
 import { liveStreak } from '../../lib/dailyReset.ts'
+import { categoryIndex } from '../../lib/category.ts'
 
 const ROW = 44
 const XMID = 20
@@ -48,6 +49,7 @@ export function PlanCards() {
   const tree = useStore((s) => s.tree)
   const toggleTask = useStore((s) => s.toggleTask)
   const ordered = renderOrder(tree)
+  const cat = useMemo(() => categoryIndex(tree), [tree])
   const cards: Card[] = []
   for (const l of LANGS) {
     const mine = ordered.filter((t) => taskLang(t) === l.id)
@@ -55,7 +57,7 @@ export function PlanCards() {
   }
   for (const p of PROJECTS) {
     if (p.id === 'lang') continue
-    const mine = ordered.filter((t) => t.tags.includes(p.id))
+    const mine = ordered.filter((t) => cat.get(t.id) === p.id)
     if (mine.length) cards.push({ key: p.id, title: p.label, chip: p.short, hue: p.hue, href: `?plan=${p.id}`, tasks: mine })
   }
   if (!cards.length) return null

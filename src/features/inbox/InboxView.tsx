@@ -30,6 +30,7 @@ import { MIRROR_TAG, PARKED_TAG } from '../../lib/rmHub.ts'
 import { dayKey } from '../../lib/dailyReset.ts'
 import { readCheckin, resolvePlace } from '../../lib/suggester.ts'
 import { KEPT_TAG, STALE_DAYS, STALE_TAG } from '../../lib/stale.ts'
+import { PROJECTS } from '../../seed.ts'
 import type { TaskRow } from '../../types.ts'
 
 type Choice = { id: string; label: string }
@@ -47,6 +48,8 @@ const FAMILIES: Family[] = [
   { key: 'device', label: 'Device', choices: DEVICES, ids: DEVICES.map((c) => c.id).filter(Boolean) },
   { key: 'energy', label: 'Energy', choices: ENERGY, ids: ENERGY.map((c) => c.id).filter(Boolean) },
   { key: 'priority', label: 'Priority', choices: [{ id: '', label: 'normal' }, { id: 'high', label: 'high priority' }], ids: ['high'] },
+  // Own category tag; unset = inherit from the folder (lib/category.ts).
+  { key: 'category', label: 'Category', choices: [{ id: '', label: 'from folder' }, ...PROJECTS.map((p) => ({ id: p.id, label: p.label }))], ids: PROJECTS.map((p) => p.id) },
 ]
 // A link whose label says nothing ("link", "Link2", "hhh", "444") shows its host instead.
 const BLANK_LABEL = /^(link\d*|here|pc|launch|hhh|\d+)$/i

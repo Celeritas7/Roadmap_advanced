@@ -4,10 +4,10 @@
 // persisted device-locally. Header stats stay global; only the road and its
 // pool follow the chip. All-clear on a filtered view keeps the chips up.
 
-import type { CSSProperties } from 'react'
+import { useMemo, type CSSProperties } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import { useEffectiveRoleId } from '../../hooks/useEffectiveRoleId.ts'
-import { ROLES, ROLE_BY_ID, PROJECTS, PROJECT_BY_ID } from '../../seed.ts'
+import { ROLES, ROLE_BY_ID, PROJECTS } from '../../seed.ts'
 import { getDaypart, formatHour12 } from '../../lib/time.ts'
 import { dayLabel, inGraceWindow, untilResetLabel } from '../../lib/dailyReset.ts'
 import { buildTree, type TreeNode } from '../../lib/tree.ts'
@@ -18,6 +18,7 @@ import { PlanCards } from './PlanCards.tsx'
 import { roadGeometry, workCap, barrierMessage, ROAD_XMID } from './road.ts'
 import { ROAD_VIEWS, ROAD_VIEW_BY_ID, applyRoadView } from './roadViews.ts'
 import { passingTaskIds } from '../../store/selectors.ts'
+import { categoryCounts, categoryIndex } from '../../lib/category.ts'
 
 const ALL_ROLES: Set<string> = new Set(ROLES.map((r) => r.id))
 
@@ -33,8 +34,6 @@ function tasksInRenderOrder(tasks: TaskRow[]): TaskRow[] {
   return out
 }
 
-const projectOf = (t: TaskRow): string | null =>
-  t.tags.find((tag) => tag in PROJECT_BY_ID) ?? null
 
 const isToday = (iso: string): boolean => {
   const d = new Date(iso)
@@ -50,6 +49,13 @@ export function HomeView() {
   const setRoadView = useStore((s) => s.setRoadView)
   const effId = useEffectiveRoleId()
   const filters = useStore((s) => s.filters)
+  const homeCategory = useStore((s) => s.homeCategory)
+  const setHomeCategory = useStore((s) => s.setHomeCategory)
+  // Category comes from the task or its folder (lib/category.ts), so kept
+  // Inbox items and captures ride the road too.
+  const cat = useMemo(() => categoryIndex(tree), [tree])
+  const projectOf = (t: TaskRow): string | null => cat.get(t.id) ?? null
+  const counts = useMemo(() => categoryCounts(tree, cat), [tree, cat])
   // Role gate opened to ALL roles — Home is the merged daily road. Context
   // filters still apply (same single source of pass Plan uses).
   const { pass } = passingTaskIds(tree, ALL_ROLES, filters)
@@ -57,7 +63,7 @@ export function HomeView() {
   const dp = getDaypart(hour)
 
   const tasks = tasksInRenderOrder(tree).filter(
-    (t) => projectOf(t) !== null && pass.has(t.id),
+    (t) => projectOf(t) !== null && pass.has(t.id) && (!homeCategory || projectOf(t) === homeCategory),
   )
   const open = tasks.filter((t) => !t.done)
   const done = tasks.length - open.length
@@ -66,7 +72,7 @@ export function HomeView() {
   const viewMeta = ROAD_VIEW_BY_ID[roadView]
   const viewOpenCount = (id: typeof roadView) =>
     applyRoadView(id, tasks).filter((t) => !t.done).length
-  const viewTasks = applyRoadView(roadView, tasks)
+  const viewTasks = applyRoadView(roadView, tasks, cat)
 
   // Road pool: open stops + stops cleared today (cleared ones ride along,
   // dimmed, holding their rotation slot).
@@ -126,6 +132,24 @@ export function HomeView() {
         </div>
       </section>
       <div className="home-next">
+        <div className="home-cats" role="group" aria-label="Categories">
+          <span className="flabel">Categories</span>
+          <button type="button" className={'vchip' + (!homeCategory ? ' on' : '')} aria-pressed={!homeCategory} onClick={() => setHomeCategory(null)}>
+            All <span className="n">{[...counts.values()].reduce((a, b) => a + b, 0)}</span>
+          </button>
+          {PROJECTS.filter((p) => counts.get(p.id)).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={'vchip cat' + (homeCategory === p.id ? ' on' : '')}
+              style={{ '--h': p.hue } as CSSProperties}
+              aria-pressed={homeCategory === p.id}
+              onClick={() => setHomeCategory(homeCategory === p.id ? null : p.id)}
+            >
+              {p.label} <span className="n">{counts.get(p.id)}</span>
+            </button>
+          ))}
+        </div>
         <div className="road-views">
           <span className="flabel">Next stops · road</span>
           {ROAD_VIEWS.map((v) => (

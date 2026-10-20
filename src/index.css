@@ -1564,3 +1564,13 @@ body {
   .cap-backdrop{padding-top:12px}
   .cap-recent .ns-chip{min-height:36px}
 }
+/* Home · categories strip */
+.rm .home-cats{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:10px;margin-bottom:8px}
+.rm .home-cats .flabel{margin-right:4px}
+.rm .vchip.cat{border-color:hsl(var(--h) 45% 78%)}
+.rm .vchip.cat .n{background:hsl(var(--h) 70% 92%);color:hsl(var(--h) 45% 32%)}
+.rm .vchip.cat.on{background:hsl(var(--h) 62% 48%);border-color:hsl(var(--h) 62% 48%)}
+.rm .vchip.cat.on .n{background:rgba(255,255,255,.22);color:#fff}
+.rm[data-theme="summit"] .vchip.cat{border-color:hsl(var(--h) 30% 34%)}
+.rm[data-theme="summit"] .vchip.cat .n{background:hsl(var(--h) 35% 22%);color:hsl(var(--h) 70% 78%)}
+@media (max-width:768px){.rm .home-cats{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}.rm .home-cats::-webkit-scrollbar{display:none}.rm .home-cats .vchip{flex:none}}

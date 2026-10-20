@@ -4,6 +4,7 @@
 import { createRoot } from 'react-dom/client'
 import { InboxView } from '../../src/features/inbox/InboxView.tsx'
 import { CaptureSheet } from '../../src/features/capture/CaptureSheet.tsx'
+import { HomeView } from '../../src/features/home/HomeView.tsx'
 import { useStore } from '../../src/store/useStore.ts'
 import type { TaskRow, TaskUpdate } from '../../src/types.ts'
 import '../../src/index.css'
@@ -63,5 +64,5 @@ useStore.setState({
 })
 ;(window as unknown as { rmStore: typeof useStore }).rmStore = useStore
 createRoot(document.getElementById('root')!).render(
-  <div className="rm" data-theme="trailhead" data-role="attackers"><div className="rm-scroll"><main className="rm-pad"><CaptureSheet /><InboxView /></main></div></div>,
+  <div className="rm" data-theme="trailhead" data-role="attackers"><div className="rm-scroll"><main className="rm-pad"><CaptureSheet /><InboxView /><section data-harness="home"><HomeView /></section></main></div></div>,
 )

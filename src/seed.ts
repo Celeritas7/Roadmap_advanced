@@ -62,6 +62,8 @@ export const PROJECTS: Project[] = [
   { id: 'lang',      label: 'Languages',   short: 'Lang',   hue: 138, role: 'attackers'  },
   { id: 'visa',      label: 'Visa',        short: 'Visa',   hue: 200, role: 'attackers'  },
   { id: 'food',      label: 'Food',        short: 'Food',   hue: 38,  role: 'midplayers' },
+  { id: 'shop',      label: 'Shopping',    short: 'Shop',   hue: 28,  role: 'midplayers' },
+  { id: 'place',     label: 'Places',      short: 'Place',  hue: 190, role: 'midplayers' },
   { id: 'exercise',  label: 'Exercise',    short: 'Exer',   hue: 165, role: 'midplayers' },
   { id: 'sleep',     label: 'Sleep',       short: 'Sleep',  hue: 250, role: 'defenders'  },
   { id: 'fashion',   label: 'Fashion',     short: 'Style',  hue: 320, role: 'defenders'  },

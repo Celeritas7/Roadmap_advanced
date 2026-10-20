@@ -56,6 +56,7 @@ export type StoreState = {
   theme: ThemeName
   // V2-K: which road Home shows ('all'|'quick'|'daily'|'focus'). Persisted.
   roadView: RoadViewId
+  homeCategory: string | null   // Home category chip (client-only)
 
   initialized: boolean
   loading: boolean
@@ -100,6 +101,7 @@ export type StoreState = {
   selectRole: (roleId: string) => void
   setTheme: (t: ThemeName) => void
   setRoadView: (v: RoadViewId) => void
+  setHomeCategory: (id: string | null) => void
   setView: (view: ViewName) => void
 }
 
@@ -152,6 +154,7 @@ export const useStore = create<StoreState>((set, get) => ({
   view: 'home',
   theme: readStoredTheme(),
   roadView: readStoredRoadView(),
+  homeCategory: null,
   initialized: false,
   loading: true,
   error: null,
@@ -383,6 +386,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setView: (view) => set({ view }),
 
+  setHomeCategory: (id) => set({ homeCategory: id }),
   setRoadView: (v) => {
     set({ roadView: v })
     storeRoadView(v)
