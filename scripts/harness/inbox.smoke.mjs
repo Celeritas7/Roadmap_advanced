@@ -52,9 +52,9 @@ await p.getByRole('button', { name: /Keep all/ }).click()
 check('Keep all strips every shown card', (await p.locator('.ib-strip.keep').count()) === 1)
 
 // Phase 2: pills + picker, link host labels, phone layout
-await p.getByRole('button', { name: /^All \d/ }).click()
+await p.locator('.ib-folders').getByRole('button', { name: /^All \d/ }).click()
 const mj = p.locator('.ib-item', { hasText: 'Mark Japanese' })
-check('pills show current values', (await mj.locator('.ib-pill').allTextContents()).join('|') === 'home|quick|either|any energy|normal')
+check('pills show current values', (await mj.locator('.ib-pill').allTextContents()).join('|') === 'home|quick|either|any energy|normal|from folder')
 await mj.getByRole('button', { name: /^Where:/ }).click()
 check('picker opens with 44px rows', await mj.locator('.ib-opt').first().evaluate((el) => el.getBoundingClientRect().height >= 44))
 await p.keyboard.press('Escape')
@@ -87,7 +87,7 @@ await p.locator('.ib-bar').getByLabel('Move selected to folder').selectOption({ 
 const moved = (await tree()).filter((t) => t.id.startsWith('h') && t.parent_id === 'lang-ja').length
 check('Move to moves all 5 in one batch', moved === 5 && (await p.evaluate(() => window.batchCalls)) === 2)
 await p.getByRole('button', { name: /^Languages › Japanese/ }).click()
-await p.getByRole('button', { name: /^All \d/ }).click()
+await p.locator('.ib-folders').getByRole('button', { name: /^All \d/ }).click()
 await home('Cook rice').getByRole('checkbox').click()
 await home('Make curry').getByRole('checkbox').click()
 await p.locator('.ib-bar').getByRole('button', { name: 'Keep' }).click()
@@ -102,7 +102,7 @@ await p.screenshot({ path: process.env.SHOT_PHONE || 'scripts/harness/phone.png'
 await p.setViewportSize({ width: 1100, height: 900 })
 
 // Phase 4: review mode, keys, counter, sort
-await p.getByRole('button', { name: /^All \d/ }).click()
+await p.locator('.ib-folders').getByRole('button', { name: /^All \d/ }).click()
 const before = await p.locator('.ib-count').textContent()
 await p.getByRole('button', { name: 'Review one by one' }).click()
 check('review shows one card', (await p.locator('.ib-review').count()) === 1 && (await p.locator('.ib-item').count()) === 0)
@@ -177,8 +177,37 @@ await p.locator('.cap-recent li', { hasText: 'call mama' }).getByRole('button', 
 check('Undo removes the captured task', !(await tree()).some((t) => t.title === 'call mama'))
 await cap.press('Escape')
 check('Esc closes the sheet', (await p.locator('.cap-sheet').count()) === 0)
-check('captured items show in the Inbox', (await p.locator('.ib-item', { hasText: 'buy tissue paper' }).count()) === 1 && (await p.getByRole('button', { name: /^Shopping/ }).count()) === 1)
+check('captured items show in the Inbox', (await p.locator('.ib-item', { hasText: 'buy tissue paper' }).count()) === 1 && (await p.locator('.ib-folders').getByRole('button', { name: /^Shopping/ }).count()) === 1)
 check('Priority pill reads high', (await p.locator('.ib-item', { hasText: 'buy tissue paper' }).getByRole('button', { name: /^Priority:/ }).textContent()) === 'high priority')
+
+// Phase 6: categories inherit from the folder; Home strip shows them with counts
+const chips = async () => Object.fromEntries((await p.locator('.home-cats .vchip').allTextContents()).map((s) => { const m = s.trim().match(/^(.*?)\s*(\d+)$/); return [m[1], Number(m[2])] }))
+const c0 = await chips()
+check('Home category strip lists Languages and Shopping with counts', c0.Languages >= 1 && c0.Shopping >= 1 && c0.All === Object.entries(c0).filter(([k]) => k !== 'All').reduce((a, [, v]) => a + v, 0))
+const langRoad0 = await p.locator('[data-harness="home"] .home-rows .row').count()
+await p.locator('.home-cats .vchip', { hasText: /^Shopping/ }).click()
+check('picking Shopping filters the road to shopping items', (await p.locator('[data-harness="home"] .home-rows .row').count()) < langRoad0)
+await p.locator('.home-cats .vchip', { hasText: /^All/ }).click()
+await p.locator('.ib-item', { hasText: 'buy tissue paper' }).getByRole('button', { name: /^Category:/ }).click()
+await p.locator('.ib-pop').getByRole('option', { name: 'Languages' }).click()
+const recat = (await tree()).find((t) => t.title === 'buy tissue paper')
+check('Category pill sets an own tag that overrides the folder', recat.tags.includes('lang') && !recat.tags.includes('shop') && (await chips()).Languages === c0.Languages + 1)
+
+// Fix: captures say where they went, and one tap opens them in the Inbox.
+await p.locator('.rm-capture').click()
+const cap2 = p.getByLabel('Capture a task')
+await cap2.fill('garlic crusher'); await cap2.press('Enter')
+await p.locator('.cap-recent li', { hasText: 'garlic crusher' }).waitFor()
+check('capture row names the Inbox as the destination', /Inbox › Other/.test(await p.locator('.cap-recent li', { hasText: 'garlic crusher' }).textContent()))
+await p.getByRole('button', { name: /in Inbox →/ }).click()
+const nav = await p.evaluate(() => { const s = window.rmStore.getState(); return { view: s.view, folder: s.inboxFolder, open: s.captureOpen } })
+const firstCap = (await p.locator('.ib-item').first().textContent()) ?? ''
+check('See in Inbox opens the Captured chip, newest first, and closes the sheet', nav.view === "inbox" && nav.folder === "captured" && !nav.open && firstCap.includes('garlic crusher'))
+check('Captured chip only lists captured items', (await p.locator('.ib-item .ib-folder').allTextContents()).every((f) => ['Shopping', 'Places', 'Other'].includes(f.trim())))
+await p.setViewportSize({ width: 390, height: 760 })
+const hb = await p.evaluate(() => { const r = (sel) => document.querySelector(sel).getBoundingClientRect(); return { cap: r('.rm-capture'), mark: r('.rm-mark'), tabs: r('.rm-tabs') } })
+check('phone header: capture button clears the title and tabs sit on their own row', hb.cap.left >= hb.mark.right && hb.tabs.top >= hb.cap.bottom && hb.tabs.right <= 390)
+await p.setViewportSize({ width: 1100, height: 900 })
 
 await p.screenshot({ path: 'scripts/harness/inbox.png', fullPage: true })
 await b.close()

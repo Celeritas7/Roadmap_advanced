@@ -10,7 +10,7 @@ import { activeRoleIds, effectiveRoleId } from '../store/selectors.ts'
 import { categoryOf, lockedSlots, rotate, type Served } from './rotation.ts'
 import { STALE_TAG, staleIds } from './stale.ts'
 import { MIRROR_TAG, PARKED_TAG, addrKey, hubAddrOf, hubInstance, hubPlaces, hubTags, hubWhere, levelOfProject, projectOfRow, refreshTags, rmIdOf, tagAddr } from './rmHub.ts'
-import { PROJECT_BY_ID } from '../seed.ts'
+import { categoryIndex } from './category.ts'
 import type { AkBanner, Device, Energy, PlaceSource, RmHubInstance, SuggestCtx, SuggestTask, TaskRow, WfAddr } from '../types.ts'
 import type { useStore } from '../store/useStore.ts'
 
@@ -121,6 +121,9 @@ export function pickedPlace(): string | null {
 // if < 30 min, open or closed alike → (d) 'anywhere'.
 // Empty whereNow() means unknown, never "away".
 // `open` = (c) on a visit with no until.
+// The hub reports a stop it can't match to a saved place with every field null:
+// a real stop, but no class — rank as 'anywhere', and never print "null".
+const UNNAMED = 'unnamed spot'
 export type ResolvedPlace = { cls: string; label: string; src: PlaceSource; at: number | null; open?: boolean }
 export function resolvePlace(): ResolvedPlace {
   const pick = pickedPlace()
@@ -134,11 +137,11 @@ export function resolvePlace(): ResolvedPlace {
   const now = Date.now()
   if (now - w.at < WHERE_MAX_AGE) {   // a read this old is no read: the tab was in the background
     const r = w.now[0]   // newest first; two devices may report one stop — take the newest, no dedupe
-    if (r) return { cls: r.class, label: r.place_label ?? r.anchor_label ?? r.class, src: 'hub', at: Date.parse(r.last_seen_at) }
+    if (r) return { cls: r.class ?? 'anywhere', label: r.place_label ?? r.anchor_label ?? r.class ?? UNNAMED, src: 'hub', at: Date.parse(r.last_seen_at) }
     const v = w.visits[0]
     if (v) {
       const at = Date.parse(v.last_seen_at ?? v.until ?? v.since)
-      if (now - at < STALE_VISIT_MS) return { cls: v.class, label: v.place_label ?? v.anchor_label ?? v.class, src: 'stale', at, open: !v.until }
+      if (now - at < STALE_VISIT_MS) return { cls: v.class ?? 'anywhere', label: v.place_label ?? v.anchor_label ?? v.class ?? UNNAMED, src: 'stale', at, open: !v.until }
     }
   }
   return { cls: 'anywhere', label: 'anywhere', src: 'none', at: null }
@@ -194,14 +197,8 @@ export const isNative = (a: WfAddr) => a.board_id === NATIVE_BOARD
 const PLACE_OF_TAG: Record<string, string> = { home: 'home', office: 'office', train: 'transit', transit: 'transit', cafe: 'cafe', outside: 'out', out: 'out' }
 
 function nativeCandidates(tree: TaskRow[]): SuggestTask[] {
-  const byId = new Map(tree.map((t) => [t.id, t]))
-  const projectOf = (r: TaskRow): string | null => {
-    for (let x: TaskRow | undefined = r; x; x = x.parent_id ? byId.get(x.parent_id) : undefined) {
-      const p = x.tags.find((t) => PROJECT_BY_ID[t])
-      if (p) return p
-    }
-    return null
-  }
+  const cat = categoryIndex(tree)
+  const projectOf = (r: TaskRow): string | null => cat.get(r.id) ?? null
   const out: SuggestTask[] = []
   for (const r of tree) {
     if (r.kind !== 'task' || r.tags.includes(MIRROR_TAG) || hubAddrOf(r.id)) continue

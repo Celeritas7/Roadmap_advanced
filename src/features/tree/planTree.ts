@@ -6,6 +6,7 @@
 import { ROLES } from '../../seed.ts'
 import { buildTree, type TreeNode } from '../../lib/tree.ts'
 import { passingTaskIds, visibleGroupIds } from '../../store/selectors.ts'
+import { categoryIndex } from '../../lib/category.ts'
 import type { FilterState, TaskRow } from '../../types.ts'
 
 export const ALL_ROLE_IDS: Set<string> = new Set(ROLES.map((r) => r.id))
@@ -23,9 +24,10 @@ export function planTreeFor(
   filters: FilterState,
 ): PlanTree {
   const { pass, dim } = passingTaskIds(rows, ALL_ROLE_IDS, filters)
+  const cat = categoryIndex(rows)
   const planPass = new Set<string>()
   for (const t of rows) {
-    if (t.kind === 'task' && t.tags.includes(projectId) && pass.has(t.id)) {
+    if (t.kind === 'task' && cat.get(t.id) === projectId && pass.has(t.id)) {
       planPass.add(t.id)
     }
   }
@@ -34,7 +36,7 @@ export function planTreeFor(
   let open = 0
   let total = 0
   for (const t of rows) {
-    if (t.kind !== 'task' || !t.tags.includes(projectId)) continue
+    if (t.kind !== 'task' || cat.get(t.id) !== projectId) continue
     total++
     if (!t.done) open++
   }

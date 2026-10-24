@@ -4,6 +4,7 @@
 import type { TaskRow } from '../../types.ts'
 import { isDaily } from '../../lib/dailyReset.ts'
 import { PROJECT_BY_ID } from '../../seed.ts'
+import type { CategoryIndex } from '../../lib/category.ts'
 
 export type RoadViewId = 'all' | 'quick' | 'daily' | 'focus'
 export type RoadView = { id: RoadViewId; label: string; title: string; hint: string }
@@ -27,7 +28,7 @@ const projectOf = (t: TaskRow): string | null =>
 // `tasks` arrive in render order (= priority order). Returns the subset that
 // rides the road under this view. 'focus' = the first OPEN stop from each of
 // the first three plans that still have one (no cleared ride-alongs).
-export function applyRoadView(view: RoadViewId, tasks: TaskRow[]): TaskRow[] {
+export function applyRoadView(view: RoadViewId, tasks: TaskRow[], cat?: CategoryIndex): TaskRow[] {
   if (view === 'all') return tasks
   if (view === 'quick') return tasks.filter((t) => t.tags.includes('ph-quick'))
   if (view === 'daily') return tasks.filter(isDaily)
@@ -35,7 +36,7 @@ export function applyRoadView(view: RoadViewId, tasks: TaskRow[]): TaskRow[] {
   const out: TaskRow[] = []
   for (const t of tasks) {
     if (t.done) continue
-    const p = projectOf(t)
+    const p = cat ? cat.get(t.id) ?? null : projectOf(t)
     if (!p || seen.has(p)) continue
     seen.add(p)
     out.push(t)

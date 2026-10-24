@@ -30,6 +30,8 @@ import { MIRROR_TAG, PARKED_TAG } from '../../lib/rmHub.ts'
 import { dayKey } from '../../lib/dailyReset.ts'
 import { readCheckin, resolvePlace } from '../../lib/suggester.ts'
 import { KEPT_TAG, STALE_DAYS, STALE_TAG } from '../../lib/stale.ts'
+import { CAPTURE_ROOT } from '../../lib/capture.ts'
+import { PROJECTS } from '../../seed.ts'
 import type { TaskRow } from '../../types.ts'
 
 type Choice = { id: string; label: string }
@@ -47,6 +49,8 @@ const FAMILIES: Family[] = [
   { key: 'device', label: 'Device', choices: DEVICES, ids: DEVICES.map((c) => c.id).filter(Boolean) },
   { key: 'energy', label: 'Energy', choices: ENERGY, ids: ENERGY.map((c) => c.id).filter(Boolean) },
   { key: 'priority', label: 'Priority', choices: [{ id: '', label: 'normal' }, { id: 'high', label: 'high priority' }], ids: ['high'] },
+  // Own category tag; unset = inherit from the folder (lib/category.ts).
+  { key: 'category', label: 'Category', choices: [{ id: '', label: 'from folder' }, ...PROJECTS.map((p) => ({ id: p.id, label: p.label }))], ids: PROJECTS.map((p) => p.id) },
 ]
 // A link whose label says nothing ("link", "Link2", "hhh", "444") shows its host instead.
 const BLANK_LABEL = /^(link\d*|here|pc|launch|hhh|\d+)$/i
@@ -87,7 +91,8 @@ export function InboxView() {
   const updateTasks = useStore((s) => s.updateTasks)
   const deleteTasks = useStore((s) => s.deleteTasks)
   const addFolder = useStore((s) => s.addFolder)
-  const [folder, setFolder] = useState('all')   // a parent id, or 'all'
+  const folder = useStore((s) => s.inboxFolder)   // a parent id, 'captured', or 'all'
+  const setFolder = useStore((s) => s.setInboxFolder)
   const [pending, setPending] = useState<Map<string, Pending>>(new Map())
   const [newFor, setNewFor] = useState<NewFor>(null)
   const [live, setLive] = useState('')   // aria-live announcement
@@ -197,8 +202,13 @@ export function InboxView() {
     newest: (a, b) => b.created_at.localeCompare(a.created_at) || a.position - b.position,
     links: (a, b) => Number(hasLinks.has(b.id)) - Number(hasLinks.has(a.id)) || order.folder(a, b),
   }
-  const shown = items.filter((t) => folder === 'all' || (t.parent_id ?? '') === folder).sort(order[sort])
-  const picked = folder !== 'all' ? byId.get(folder) : undefined
+  const rootOf = (t: TaskRow): TaskRow => (t.parent_id && byId.get(t.parent_id) ? rootOf(byId.get(t.parent_id)!) : t)
+  // Quick captures live under the Captured root; one chip shows them all, newest first.
+  const isCaptured = (t: TaskRow) => { const r = rootOf(t); return r.title === CAPTURE_ROOT && r.tags.includes('inbox') }
+  const capturedN = items.filter(isCaptured).length
+  const inFolder = (t: TaskRow) => folder === 'all' || (folder === 'captured' ? isCaptured(t) : (t.parent_id ?? '') === folder)
+  const shown = items.filter(inFolder).sort(folder === 'captured' ? order.newest : order[sort])
+  const picked = folder !== 'all' && folder !== 'captured' ? byId.get(folder) : undefined
   // Selection only counts cards that are on screen and not on an Undo strip.
   const visible = shown.filter((t) => !pending.has(t.id))
   const sel = visible.filter((t) => selected.has(t.id))
@@ -230,7 +240,6 @@ export function InboxView() {
 
   // Move targets: every folder outside the inbox's own root folder(s), by path;
   // same-path duplicates collapse to the first.
-  const rootOf = (t: TaskRow): TaskRow => (t.parent_id && byId.get(t.parent_id) ? rootOf(byId.get(t.parent_id)!) : t)
   const inboxRoots = new Set(items.map((t) => rootOf(t).id).filter((id) => byId.get(id)?.tags.includes('inbox')))
   const seen = new Set<string>()
   const targets = tree
@@ -353,6 +362,11 @@ export function InboxView() {
         </div>
         <div className="ib-folders">
           <button type="button" className={'vchip' + (folder === 'all' ? ' on' : '')} aria-pressed={folder === 'all'} onClick={() => setFolder('all')}>All <span className="n">{items.length}</span></button>
+          {capturedN > 0 && (
+            <button type="button" className={'vchip cap' + (folder === 'captured' ? ' on' : '')} aria-pressed={folder === 'captured'} onClick={() => setFolder('captured')}>
+              ＋ Captured <span className="n">{capturedN}</span>
+            </button>
+          )}
           {folderIds.map((fid) => (
             <button key={fid} type="button" className={'vchip' + (folder === fid ? ' on' : '')} aria-pressed={folder === fid} onClick={() => setFolder(fid)}>
               {chipLabel(fid)} <span className="n">{count(fid)}</span>
@@ -454,7 +468,7 @@ export function InboxView() {
                 />
                 <span className="ib-name">{t.title}</span>
                 {t.tags.includes(STALE_TAG) && <span className="ib-stale" title={`Kept, then untouched for ${STALE_DAYS}+ days`}>back · untouched {STALE_DAYS}d</span>}
-                {folder === 'all' && <span className="ib-folder">{titleOf(t.parent_id)}</span>}
+                {(folder === 'all' || folder === 'captured') && <span className="ib-folder">{titleOf(t.parent_id)}</span>}
               </div>
               {resources.some((r) => r.task_id === t.id) && (
                 <div className="ib-links">
