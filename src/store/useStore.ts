@@ -57,6 +57,8 @@ export type StoreState = {
   // V2-K: which road Home shows ('all'|'quick'|'daily'|'focus'). Persisted.
   roadView: RoadViewId
   homeCategory: string | null   // Home category chip (client-only)
+  // Inbox folder chip: 'all', 'captured' (everything under Captured), or a folder id.
+  inboxFolder: string
 
   initialized: boolean
   loading: boolean
@@ -102,6 +104,9 @@ export type StoreState = {
   setTheme: (t: ThemeName) => void
   setRoadView: (v: RoadViewId) => void
   setHomeCategory: (id: string | null) => void
+  setInboxFolder: (id: string) => void
+  // Jump to the Inbox with its Captured chip on (from the capture sheet).
+  openCaptured: () => void
   setView: (view: ViewName) => void
 }
 
@@ -155,6 +160,7 @@ export const useStore = create<StoreState>((set, get) => ({
   theme: readStoredTheme(),
   roadView: readStoredRoadView(),
   homeCategory: null,
+  inboxFolder: 'all',
   initialized: false,
   loading: true,
   error: null,
@@ -387,6 +393,8 @@ export const useStore = create<StoreState>((set, get) => ({
   setView: (view) => set({ view }),
 
   setHomeCategory: (id) => set({ homeCategory: id }),
+  setInboxFolder: (id) => set({ inboxFolder: id }),
+  openCaptured: () => set({ view: 'inbox', inboxFolder: 'captured', captureOpen: false }),
   setRoadView: (v) => {
     set({ roadView: v })
     storeRoadView(v)

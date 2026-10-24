@@ -121,6 +121,9 @@ export function pickedPlace(): string | null {
 // if < 30 min, open or closed alike → (d) 'anywhere'.
 // Empty whereNow() means unknown, never "away".
 // `open` = (c) on a visit with no until.
+// The hub reports a stop it can't match to a saved place with every field null:
+// a real stop, but no class — rank as 'anywhere', and never print "null".
+const UNNAMED = 'unnamed spot'
 export type ResolvedPlace = { cls: string; label: string; src: PlaceSource; at: number | null; open?: boolean }
 export function resolvePlace(): ResolvedPlace {
   const pick = pickedPlace()
@@ -134,11 +137,11 @@ export function resolvePlace(): ResolvedPlace {
   const now = Date.now()
   if (now - w.at < WHERE_MAX_AGE) {   // a read this old is no read: the tab was in the background
     const r = w.now[0]   // newest first; two devices may report one stop — take the newest, no dedupe
-    if (r) return { cls: r.class, label: r.place_label ?? r.anchor_label ?? r.class, src: 'hub', at: Date.parse(r.last_seen_at) }
+    if (r) return { cls: r.class ?? 'anywhere', label: r.place_label ?? r.anchor_label ?? r.class ?? UNNAMED, src: 'hub', at: Date.parse(r.last_seen_at) }
     const v = w.visits[0]
     if (v) {
       const at = Date.parse(v.last_seen_at ?? v.until ?? v.since)
-      if (now - at < STALE_VISIT_MS) return { cls: v.class, label: v.place_label ?? v.anchor_label ?? v.class, src: 'stale', at, open: !v.until }
+      if (now - at < STALE_VISIT_MS) return { cls: v.class ?? 'anywhere', label: v.place_label ?? v.anchor_label ?? v.class ?? UNNAMED, src: 'stale', at, open: !v.until }
     }
   }
   return { cls: 'anywhere', label: 'anywhere', src: 'none', at: null }

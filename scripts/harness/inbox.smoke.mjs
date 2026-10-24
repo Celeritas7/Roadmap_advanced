@@ -193,6 +193,22 @@ await p.locator('.ib-pop').getByRole('option', { name: 'Languages' }).click()
 const recat = (await tree()).find((t) => t.title === 'buy tissue paper')
 check('Category pill sets an own tag that overrides the folder', recat.tags.includes('lang') && !recat.tags.includes('shop') && (await chips()).Languages === c0.Languages + 1)
 
+// Fix: captures say where they went, and one tap opens them in the Inbox.
+await p.locator('.rm-capture').click()
+const cap2 = p.getByLabel('Capture a task')
+await cap2.fill('garlic crusher'); await cap2.press('Enter')
+await p.locator('.cap-recent li', { hasText: 'garlic crusher' }).waitFor()
+check('capture row names the Inbox as the destination', /Inbox › Other/.test(await p.locator('.cap-recent li', { hasText: 'garlic crusher' }).textContent()))
+await p.getByRole('button', { name: /in Inbox →/ }).click()
+const nav = await p.evaluate(() => { const s = window.rmStore.getState(); return { view: s.view, folder: s.inboxFolder, open: s.captureOpen } })
+const firstCap = (await p.locator('.ib-item').first().textContent()) ?? ''
+check('See in Inbox opens the Captured chip, newest first, and closes the sheet', nav.view === "inbox" && nav.folder === "captured" && !nav.open && firstCap.includes('garlic crusher'))
+check('Captured chip only lists captured items', (await p.locator('.ib-item .ib-folder').allTextContents()).every((f) => ['Shopping', 'Places', 'Other'].includes(f.trim())))
+await p.setViewportSize({ width: 390, height: 760 })
+const hb = await p.evaluate(() => { const r = (sel) => document.querySelector(sel).getBoundingClientRect(); return { cap: r('.rm-capture'), mark: r('.rm-mark'), tabs: r('.rm-tabs') } })
+check('phone header: capture button clears the title and tabs sit on their own row', hb.cap.left >= hb.mark.right && hb.tabs.top >= hb.cap.bottom && hb.tabs.right <= 390)
+await p.setViewportSize({ width: 1100, height: 900 })
+
 await p.screenshot({ path: 'scripts/harness/inbox.png', fullPage: true })
 await b.close()
 if (fails.length) { console.error('\n' + fails.length + ' failed'); process.exit(1) }

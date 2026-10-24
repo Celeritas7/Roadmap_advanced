@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { InboxView } from '../../src/features/inbox/InboxView.tsx'
 import { CaptureSheet } from '../../src/features/capture/CaptureSheet.tsx'
 import { HomeView } from '../../src/features/home/HomeView.tsx'
+import { Header } from '../../src/features/header/Header.tsx'
 import { useStore } from '../../src/store/useStore.ts'
 import type { TaskRow, TaskUpdate } from '../../src/types.ts'
 import '../../src/index.css'
@@ -53,7 +54,8 @@ useStore.setState({
   },
   addTask: async (parent_id: string | null, title: string, tags: string[] = []) => {
     const id = 'cap' + ++n
-    useStore.setState({ tree: [...useStore.getState().tree, row(id, title, parent_id, 'task', tags, 99)] })
+    const now = new Date(Date.now() + n).toISOString()   // distinct, increasing, so 'newest' sorts are testable
+    useStore.setState({ tree: [...useStore.getState().tree, { ...row(id, title, parent_id, 'task', tags, 99), created_at: now }] })
     return id
   },
   addFolder: async (parent_id: string | null, title: string, tags: string[] = []) => {
@@ -62,7 +64,8 @@ useStore.setState({
     return id
   },
 })
+useStore.setState({ hubState: 'live' })
 ;(window as unknown as { rmStore: typeof useStore }).rmStore = useStore
 createRoot(document.getElementById('root')!).render(
-  <div className="rm" data-theme="trailhead" data-role="attackers"><div className="rm-scroll"><main className="rm-pad"><CaptureSheet /><InboxView /><section data-harness="home"><HomeView /></section></main></div></div>,
+  <div className="rm" data-theme="trailhead" data-role="attackers"><div className="rm-scroll"><header className="rm-header"><Header /></header><main className="rm-pad"><CaptureSheet /><InboxView /><section data-harness="home"><HomeView /></section></main></div></div>,
 )

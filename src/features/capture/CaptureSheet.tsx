@@ -16,12 +16,14 @@ export function CaptureSheet() {
   const setOpen = useStore((s) => s.setCaptureOpen)
   const capture = useStore((s) => s.capture)
   const deleteTask = useStore((s) => s.deleteTask)
+  const openCaptured = useStore((s) => s.openCaptured)
   const [line, setLine] = useState('')
   const [recent, setRecent] = useState<Recent[]>([])
   const [error, setError] = useState('')
+  const [saved, setSaved] = useState(0)   // captures since the sheet opened
   const input = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { if (open) input.current?.focus() }, [open])
+  useEffect(() => { if (open) { setSaved(0); input.current?.focus() } }, [open])
   // Clear pending timers if the app unmounts.
   const recentRef = useRef(recent)
   recentRef.current = recent
@@ -41,6 +43,7 @@ export function CaptureSheet() {
       const title = guessCapture(text)!.title
       const timer = window.setTimeout(() => setRecent((rs) => rs.filter((r) => r.id !== res.id)), UNDO_MS)
       setRecent((rs) => [{ id: res.id, title, folder: res.folder, timer }, ...rs].slice(0, 4))
+      setSaved((n) => n + 1)
     } catch (e) {
       setLine(text)   // keep what was typed so nothing is lost
       setError((e as Error).message || "Couldn't save — try again.")
@@ -50,6 +53,7 @@ export function CaptureSheet() {
   const undo = (r: Recent) => {
     window.clearTimeout(r.timer)
     setRecent((rs) => rs.filter((x) => x.id !== r.id))
+    setSaved((n) => Math.max(0, n - 1))
     void deleteTask(r.id).catch(() => {})
   }
 
@@ -73,8 +77,8 @@ export function CaptureSheet() {
         </form>
         <p className="cap-preview" aria-live="polite">
           {g
-            ? <>→ <strong>{g.folder}</strong>{g.tags.map((t) => ` · ${TAG_LABEL[t] ?? t}`).join('')} · parked in Inbox</>
-            : <>Enter saves and keeps the box open. <kbd>!</kbd> marks high priority. Esc closes.</>}
+            ? <>→ Inbox › <strong>{g.folder}</strong>{g.tags.map((t) => ` · ${TAG_LABEL[t] ?? t}`).join('')}</>
+            : <>Saved items wait in the <strong>Inbox</strong> under Captured. Enter saves and keeps the box open. <kbd>!</kbd> marks high priority.</>}
         </p>
         {error && <p className="cap-error" role="alert">{error}</p>}
         {recent.length > 0 && (
@@ -83,11 +87,16 @@ export function CaptureSheet() {
               <li key={r.id}>
                 <span className="cap-k">Captured</span>
                 <span className="cap-t">{r.title}</span>
-                <span className="cap-f">{r.folder}</span>
+                <span className="cap-f">Inbox › {r.folder}</span>
                 <button type="button" className="ns-chip" onClick={() => undo(r)}>Undo</button>
               </li>
             ))}
           </ul>
+        )}
+        {saved > 0 && (
+          <button type="button" className="ns-chip cap-see" onClick={openCaptured}>
+            See {saved === 1 ? 'it' : `all ${saved}`} in Inbox →
+          </button>
         )}
       </div>
     </div>
