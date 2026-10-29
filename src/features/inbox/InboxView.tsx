@@ -79,7 +79,7 @@ const SORTS: { id: SortKey; label: string }[] = [
 ]
 // One-tap filing on the review card: the categories most Inbox items land in.
 // The rest are under "More". (lib/category.ts: an own tag beats the folder's.)
-const QUICK = ['shop', 'place', 'lang', 'dx', 'food'].filter((id) => id in PROJECT_BY_ID)
+const QUICK = ['shop', 'place', 'lang', 'dx', 'work', 'house'].filter((id) => id in PROJECT_BY_ID)
 const CATEGORY_IDS = PROJECTS.map((p) => p.id)
 const MODE_KEY = 'rm-inbox-mode'
 const HINT_KEY = 'rm-inbox-hint-seen'

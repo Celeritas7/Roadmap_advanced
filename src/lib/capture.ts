@@ -3,7 +3,7 @@
 // at its category, place and effort; every guess is a pill the user can
 // change later in the Inbox. A "!" anywhere marks it high priority.
 
-export type CaptureCategory = 'shop' | 'place' | 'dx' | 'lang' | 'other'
+export type CaptureCategory = 'shop' | 'place' | 'dx' | 'lang' | 'work' | 'house' | 'other'
 
 export type Capture = {
   title: string
@@ -28,6 +28,10 @@ const RULES: { category: CaptureCategory; folder: string; folderTags: string[]; 
     words: /\b(fix|bug|app|deploy|feature|ui|repo|pr)\b/i },
   { category: 'lang', folder: 'Languages', folderTags: ['lang'], tags: [],
     words: /\b(study|practice|practise|revise|kanji|hanzi|hsk|jlpt|n[1-5]|goi|grammar|burmese|chinese|japanese)\b|勉強/i },
+  { category: 'work', folder: 'Office', folderTags: ['work'], tags: ['office'],
+    words: /\b(meeting|email|mail|report|slides|deck|client|boss|timesheet|expense|invoice|office)\b|会議|報告|資料/i },
+  { category: 'house', folder: 'Home', folderTags: ['house'], tags: ['home'],
+    words: /\b(clean|laundry|wash|cook|dishes|gomi|trash|garbage|vacuum|tidy|iron)\b|掃除|洗濯|料理|ゴミ/i },
 ]
 const OTHER = { category: 'other' as const, folder: 'Other', folderTags: [] as string[], tags: [] as string[] }
 
