@@ -1591,3 +1591,63 @@ body {
 .rm .vchip.cap{border-color:var(--accent);color:var(--accent-ink)}
 .rm .vchip.cap.on{color:var(--on-accent)}
 .cap-see{align-self:flex-start}
+
+/* ── Inbox on phones (≤768px): review first, compact rows, bottom sheets ── */
+.ib-hint-x{margin-left:8px;padding:2px 10px;font:inherit;font-size:12px;font-weight:600;color:var(--accent-ink);background:none;border:1px solid var(--rule-strong);border-radius:999px;cursor:pointer}
+.ib-done-n{margin-left:10px;font-size:12px;font-weight:400;color:var(--ink-2)}
+.ib-pill-k{color:var(--ink-3);font-size:11.5px}
+.ib-pill.set .ib-pill-k{color:var(--ink-2)}
+.ib-more{border-style:dashed}
+.ib-file{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.ib-file .ns-k{margin-right:2px}
+.ib-file-b{border-color:hsl(var(--h) 45% 70%);background:hsl(var(--h) 70% 55% / .08)}
+.ib-file-b:hover{background:hsl(var(--h) 70% 55% / .18)}
+.inbox.phone{gap:10px}
+.inbox.phone .ib-head{gap:8px}
+.inbox.phone .ib-tools{flex-wrap:nowrap}
+.inbox.phone .ib-tools .ns-sel{flex:1;min-width:0;min-height:40px}
+.inbox.phone .ib-modes .ns-chip{min-height:40px;padding:6px 14px}
+.ib-folder-sel{width:100%;min-height:44px}
+.ib-phone-tip{margin:0}
+/* review card: fills the screen, thumb buttons pinned to the bottom */
+.inbox.phone .ib-review{min-height:min(calc(100dvh - 330px),560px);padding:16px;gap:14px;touch-action:pan-y;user-select:none;transition:transform .18s ease;position:relative}
+.inbox.phone .ib-review[style]{transition:none}
+.inbox.phone .ib-rv-title{font-size:22px}
+.inbox.phone .ib-rv-meta{flex-direction:column;gap:4px}
+.ib-rv-back{margin-right:8px;padding:2px 8px;font:inherit;font-size:12px;color:var(--ink-2);background:none;border:1px solid var(--rule-strong);border-radius:999px;cursor:pointer}
+.inbox.phone .ib-file-b,.inbox.phone .ib-file .ns-chip{min-height:40px}
+.ib-rv-thumb{position:sticky;bottom:8px;margin-top:auto;display:grid!important;grid-template-columns:1fr 1fr 1.4fr;gap:8px}
+.ib-rv-thumb .ns-chip{min-height:52px;font-size:15px;justify-content:center}
+.ib-review.swipe-right,.ib-review.swipe-r{box-shadow:inset 6px 0 0 var(--accent)}
+.ib-review.swipe-left,.ib-review.swipe-l{box-shadow:inset -6px 0 0 hsl(8 60% 55%)}
+.ib-swipe-hint{position:absolute;top:12px;right:16px;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.ib-review.swipe-right .ib-swipe-hint{color:var(--accent)}
+.ib-review.swipe-left .ib-swipe-hint{color:hsl(8 60% 45%)}
+/* compact list rows */
+.ib-c{padding:0;gap:0}
+.ib-c-row{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 8px 8px 14px;cursor:pointer;-webkit-touch-callout:none;user-select:none}
+.ib-c-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ib-c-text .ib-name{font-size:14.5px;line-height:1.3;overflow-wrap:anywhere}
+.ib-c-sub{font-size:12px;color:var(--ink-2);display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.ib-c-sub:empty{display:none}
+.ib-c-keep{flex:none;width:44px;height:44px;font-size:18px;color:var(--accent);background:var(--panel-2);border:1px solid var(--rule-strong);border-radius:999px;cursor:pointer}
+.ib-c-chev{flex:none;width:18px;color:var(--ink-3);text-align:center}
+.ib-c.open{border-color:var(--accent)}
+.ib-c-body{display:flex;flex-direction:column;gap:10px;padding:0 14px 14px}
+.ib-c-body .ib-actions{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:8px}
+.ib-c-body .ib-actions .ns-chip{min-height:44px;justify-content:center}
+/* bottom sheets */
+.ib-sheet-bg{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.32)}
+.ib-sheet{width:100%;max-width:560px;max-height:80dvh;display:flex;flex-direction:column;gap:10px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));background:var(--panel);border-radius:16px 16px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.2)}
+.ib-sheet-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ib-sheet-h strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ib-sheet-list{display:flex;flex-direction:column;overflow-y:auto;margin:0 -6px}
+.ib-sheet-list .ib-opt{width:100%;text-align:left;font:inherit;font-size:14.5px;background:none;border:0}
+.ib-sheet-q{flex:none;min-height:44px}
+.ib-sheet-new{min-height:44px;justify-content:center}
+.ib-sheet-none{padding:8px 12px}
+.ib-sheet-row{display:flex;align-items:center;gap:10px;padding:6px 12px}
+.ib-sheet-row .ns-sel{flex:1;min-height:44px}
+.inbox.phone .ib-bar{flex-wrap:nowrap}
+.inbox.phone .ib-bar .ns-chip{flex:1;justify-content:center}
+.inbox.phone .ib-bar .ib-bar-n{flex:none}
