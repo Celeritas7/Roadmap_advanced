@@ -11,6 +11,12 @@ const cases = [
   ['get together with Amy bhai', 'other', [], false],
   ['get new earphones', 'shop', ['outside', 'short-burst'], false],
   ['call mama', 'other', [], false],
+  ['send the monthly report to boss', 'work', ['office'], false],
+  ['会議の資料', 'work', ['office'], false],
+  ['do laundry', 'house', ['home'], false],
+  ['掃除する', 'house', ['home'], false],
+  ['buy cleaning spray', 'shop', ['outside', 'short-burst'], false],
+  ['fix the report export bug', 'dx', ['keyboard'], false],
   ['   !!  ', null, null, null],
 ]
 let fail = 0

@@ -8,7 +8,7 @@ import { folderProgress } from '../../store/selectors.ts'
 
 const EMOJI: Record<string, string> = {
   dx: '🧑‍💻', fullstack: '🧱', lang: '🗣️', visa: '🛂',
-  food: '🍜', exercise: '🏃', sleep: '🌙', fashion: '👔', shop: '🛒', place: '📍',
+  food: '🍜', exercise: '🏃', sleep: '🌙', fashion: '👔', shop: '🛒', place: '📍', work: '💼', house: '🏠',
 }
 
 export function openPlanWindow(projectId: string) {
