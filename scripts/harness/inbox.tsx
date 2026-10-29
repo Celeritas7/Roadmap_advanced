@@ -7,6 +7,7 @@ import { CaptureSheet } from '../../src/features/capture/CaptureSheet.tsx'
 import { HomeView } from '../../src/features/home/HomeView.tsx'
 import { Header } from '../../src/features/header/Header.tsx'
 import { SearchSheet } from '../../src/features/search/SearchSheet.tsx'
+import { CompareSheet } from '../../src/features/compare/CompareSheet.tsx'
 import { useStore } from '../../src/store/useStore.ts'
 import type { TaskRow, TaskUpdate } from '../../src/types.ts'
 import '../../src/index.css'
@@ -68,7 +69,16 @@ useStore.setState({
   },
 })
 useStore.setState({ hubState: 'live' })
+// Comparisons save to Supabase in the app; here they stay in memory.
+useStore.setState({
+  setCompareWeights: async (id: string, weights: Record<string, number>) => {
+    useStore.setState({ comparisons: useStore.getState().comparisons.map((c) => (c.id === id ? { ...c, weights } : c)) })
+  },
+  chooseCompareItem: async (id: string, itemId: string | null) => {
+    useStore.setState({ comparisons: useStore.getState().comparisons.map((c) => (c.id === id ? { ...c, chosen_item: itemId } : c)) })
+  },
+})
 ;(window as unknown as { rmStore: typeof useStore }).rmStore = useStore
 createRoot(document.getElementById('root')!).render(
-  <div className="rm" data-theme="trailhead" data-role="attackers"><div className="rm-scroll"><header className="rm-header"><Header /></header><main className="rm-pad"><CaptureSheet /><SearchSheet /><InboxView /><section data-harness="home"><HomeView /></section></main></div></div>,
+  <div className="rm" data-theme="trailhead" data-role="attackers"><div className="rm-scroll"><header className="rm-header"><Header /></header><main className="rm-pad"><CaptureSheet /><SearchSheet /><CompareSheet /><InboxView /><section data-harness="home"><HomeView /></section></main></div></div>,
 )

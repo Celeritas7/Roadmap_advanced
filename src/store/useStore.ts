@@ -16,11 +16,14 @@ import type {
   TaskRow,
   TaskUpdate,
   UserSettings,
+  Comparison,
+  ComparisonItem,
 } from '../types.ts'
 import { subtreeIds } from '../lib/tree.ts'
 import { activeRoleIds, isRoleActive, effectiveRoleId, folderProgress, nextAction } from './selectors.ts'
 import * as sync from './sync.ts'
 import * as resourceSync from './resourceSync.ts'
+import * as compareSync from './compareSync.ts'
 import * as sessionSync from './studySessions.ts'
 import { isDaily, dayKey, prevDayKey } from '../lib/dailyReset.ts'
 import { readStoredRoadView, storeRoadView, type RoadViewId } from '../features/home/roadViews.ts'
@@ -38,6 +41,14 @@ export type StoreState = {
   log: LogRow[]
   settings: UserSettings | null
   resources: ResourceRow[]
+  // Product comparisons (another chat writes them; we keep weights + pick).
+  comparisons: Comparison[]
+  comparisonItems: ComparisonItem[]
+  compareOpen: string | null   // the comparison shown in the sheet
+  loadComparisons: () => Promise<void>
+  setCompareOpen: (id: string | null) => void
+  setCompareWeights: (id: string, weights: Record<string, number>) => Promise<void>
+  chooseCompareItem: (id: string, itemId: string | null) => Promise<void>
   // V2-L: the study-session ledger. Server-mirrored, append-mostly. Read by
   // src/lib/sessions.ts to derive streaks and per-stop trust.
   sessions: SessionRow[]
@@ -157,6 +168,29 @@ export const useStore = create<StoreState>((set, get) => ({
   log: [],
   settings: null,
   resources: [],
+  comparisons: [],
+  comparisonItems: [],
+  compareOpen: null,
+  // Quiet on failure: comparisons are extra, never a reason to show the app as broken.
+  loadComparisons: async () => {
+    try {
+      const { comparisons, items } = await compareSync.fetchComparisons()
+      set({ comparisons, comparisonItems: items })
+    } catch (e) {
+      console.warn('[compare] load failed', e)
+    }
+  },
+  setCompareOpen: (id) => set({ compareOpen: id }),
+  setCompareWeights: async (id, weights) => {
+    const prev = get().comparisons
+    set({ comparisons: prev.map((c) => (c.id === id ? { ...c, weights } : c)) })
+    try { await compareSync.updateComparison(id, { weights }) } catch (e) { set({ comparisons: prev, error: errorMessage(e) }) }
+  },
+  chooseCompareItem: async (id, itemId) => {
+    const prev = get().comparisons
+    set({ comparisons: prev.map((c) => (c.id === id ? { ...c, chosen_item: itemId } : c)) })
+    try { await compareSync.updateComparison(id, { chosen_item: itemId }) } catch (e) { set({ comparisons: prev, error: errorMessage(e) }) }
+  },
   sessions: [],
   filters: { projects: new Set(), contexts: new Set() },
   now: defaultNow(),
@@ -190,6 +224,7 @@ export const useStore = create<StoreState>((set, get) => ({
         resourceSync.fetchResources(),
       ])
       set({ tree, log, settings, resources, loading: false, error: null })
+      void get().loadComparisons()
       // V2-Q: the hub boots from App.tsx once loading=false (rmHub.bootHub).
 
       void runDailyReset(get, set)
@@ -199,9 +234,9 @@ export const useStore = create<StoreState>((set, get) => ({
       // completion appear. Cheap (one indexed query) and needs no realtime
       // replication enabled on the table.
       document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) void get().refreshSessions()
+        if (!document.hidden) { void get().refreshSessions(); void get().loadComparisons() }
       })
-      window.addEventListener('focus', () => void get().refreshSessions())
+      window.addEventListener('focus', () => { void get().refreshSessions(); void get().loadComparisons() })
     } catch (e) {
       set({ initialized: false, loading: false, error: errorMessage(e) })
     }

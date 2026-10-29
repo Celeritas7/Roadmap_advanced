@@ -318,6 +318,53 @@ check('no match says so', /Nothing matches/.test(await p.locator('.srch .cap-pre
 await sq.press('Escape')
 check('Esc closes search', (await p.locator('.srch').count()) === 0)
 
+// ── Product comparison ──
+await p.evaluate(() => {
+  const st = window.rmStore.getState()
+  const task = { id: 'cmp-t', title: 'Buy garlic crusher', parent_id: 'f-home', kind: 'task', tags: ['parked'], done: false, position: 90, expanded: true, created_at: '2026-10-29T00:00:00Z', updated_at: '2026-10-29T00:00:00Z', streak: 0, streak_day: null, user_id: 'u' }
+  const base = { comparison_id: 'cmp1', brand: null, model: null, image_url: null, url: 'https://example.com/x', shop: null, currency: 'JPY', warranty_months: null, size: null, rating: null, review_count: null, pros: [], cons: [], extra: {}, notes: null }
+  window.rmStore.setState({
+    tree: [...st.tree, task],
+    comparisons: [{ id: 'cmp1', task_id: 'cmp-t', title: 'Garlic crusher', need: 'Daily cooking, dishwasher safe', weights: {}, source: 'research chat', notes: null, chosen_item: null, created_at: '2026-10-29T00:00:00Z', updated_at: '2026-10-29T00:00:00Z' }],
+    comparisonItems: [
+      { ...base, id: 'p-cheap', name: 'Cheap press', price: 1500, quality: 2, life_years: 1, position: 0, cons: ['Plastic hinge'] },
+      { ...base, id: 'p-solid', name: 'Solid press', price: 3000, quality: 4, life_years: 5, position: 1, pros: ['Stainless', 'Dishwasher safe'], extra: { weight_g: 240 } },
+      { ...base, id: 'p-fancy', name: 'Fancy press', price: 9000, quality: 5, life_years: 6, position: 2 },
+    ],
+    view: 'inbox', inboxFolder: 'f-home',
+  })
+})
+await p.locator('.ib-modes').getByRole('button', { name: /^List/ }).click()
+const cmpBtn = p.locator('[data-task="cmp-t"]').getByRole('button', { name: /Compare 3/ })
+await cmpBtn.waitFor()
+check('a task with a study shows "Compare 3"', (await cmpBtn.count()) === 1)
+await cmpBtn.click()
+await p.locator('.cmp').waitFor()
+const names = async () => (await p.locator('.cmp-card .cmp-name strong').allTextContents())
+check('products are ranked, long-lasting middle option first', (await names())[0] === 'Solid press' && (await p.locator('.cmp-card').count()) === 3)
+check('cost per year is shown and its best is flagged', /[¥￥]600/.test(await p.locator('.cmp-card.top').textContent()) && (await p.locator('.cmp-card.top .cmp-fact.best', { hasText: 'Cost / year' }).count()) === 1)
+check('pros, cons and extra fields render', (await p.locator('.cmp-pros li').count()) === 2 && (await p.locator('.cmp-cons li').count()) === 1 && /weight g/i.test(await p.locator('.cmp-card.top').textContent()))
+for (const label of ['Cost per year', 'Quality', 'Life']) {
+  const chip = p.locator('.cmp-w', { hasText: label })
+  while (!/Off/.test(await chip.textContent())) await chip.click()
+}
+const priceChip = p.locator('.cmp-w', { hasText: /^Price/ })
+while (!/High/.test(await priceChip.textContent())) await priceChip.click()
+check('caring only about price re-ranks: cheapest first', (await names())[0] === 'Cheap press')
+check('weights are saved on the comparison', await p.evaluate(() => { const w = window.rmStore.getState().comparisons[0].weights; return w.price === 3 && w.quality === 0 && w.life === 0 }))
+await p.locator('.cmp-card', { hasText: 'Fancy press' }).getByRole('button', { name: 'Pick this' }).click()
+check('Pick this marks the pick', (await p.evaluate(() => window.rmStore.getState().comparisons[0].chosen_item)) === 'p-fancy' && (await p.locator('.cmp-card.pick', { hasText: 'Your pick' }).count()) === 1)
+await p.locator('.cmp').getByRole('button', { name: 'Close' }).click()
+check('Close shuts the comparison; the button notes the pick', (await p.locator('.cmp').count()) === 0 && /picked/.test(await cmpBtn.textContent()))
+await p.setViewportSize({ width: 390, height: 844 })
+await p.locator('.ib-c', { hasText: 'Buy garlic crusher' }).waitFor()
+await p.locator('.ib-c', { hasText: 'Buy garlic crusher' }).locator('.ib-c-text').click()
+await p.locator('.ib-c.open').getByRole('button', { name: /Compare 3/ }).click()
+check('phone: comparison opens full-screen, one column', await p.evaluate(() => { const r = document.querySelector('.cmp').getBoundingClientRect(); return r.width >= 389 && getComputedStyle(document.querySelector('.cmp-list')).gridTemplateColumns.split(' ').length === 1 }))
+await p.screenshot({ path: (process.env.SHOT_PHONE || 'scripts/harness/phone.png').replace('.png', '-compare.png') })
+await p.locator('.cmp').getByRole('button', { name: 'Close' }).click()
+await p.setViewportSize({ width: 1100, height: 900 })
+
 await p.screenshot({ path: 'scripts/harness/inbox.png', fullPage: true })
 await b.close()
 if (fails.length) { console.error('\n' + fails.length + ' failed'); process.exit(1) }

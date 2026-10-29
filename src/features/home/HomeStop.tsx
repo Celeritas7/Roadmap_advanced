@@ -11,6 +11,7 @@ import { PROJECT_BY_ID } from '../../seed.ts'
 import { useStore } from '../../store/useStore.ts'
 import type { TaskRow } from '../../types.ts'
 import { LaunchPopover } from '../plan/LaunchPopover.tsx'
+import { CompareButton } from '../compare/CompareSheet.tsx'
 import { isCooled, isDaily, untilResetLabel } from '../../lib/dailyReset.ts'
 import { derivedStreak, trustToday, verifiedShare } from '../../lib/sessions.ts'
 import { MIRROR_TAG } from '../../lib/rmHub.ts'
@@ -86,6 +87,7 @@ export function HomeStop({ task, dx, beyond, here }: Props) {
             {trust === 'verified' ? '✓ confirmed' : trust === 'self' ? '· self' : '· open'}
           </span>
         )}
+        <CompareButton taskId={task.id} compact />
         <LaunchPopover
           taskId={task.id}
           taskTitle={task.title}
