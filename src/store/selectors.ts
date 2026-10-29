@@ -1,5 +1,6 @@
 import { ROLES, PROJECT_BY_ID, CONTEXT_BY_ID } from '../seed.ts'
 import { buildTree, type TreeNode } from '../lib/tree.ts'
+import { categoryIndex } from '../lib/category.ts'
 import type {
   FilterState,
   NowState,
@@ -212,9 +213,10 @@ export function folderProgress(
 ): { done: number; total: number } {
   let done = 0
   let total = 0
+  const cat = categoryIndex(tasks)
   for (const t of tasks) {
     if (t.kind !== 'task') continue
-    if (!t.tags.includes(projectId)) continue
+    if (cat.get(t.id) !== projectId) continue
     total++
     if (t.done) done++
   }
@@ -231,9 +233,10 @@ export function nextAction(
   projectId: string,
   pass: Set<string>,
 ): TaskRow | null {
+  const cat = categoryIndex(tasks)
   for (const t of tasksInRenderOrder(tasks)) {
     if (t.done) continue
-    if (!t.tags.includes(projectId)) continue
+    if (cat.get(t.id) !== projectId) continue
     if (!pass.has(t.id)) continue
     return t
   }

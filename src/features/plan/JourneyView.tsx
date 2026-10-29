@@ -6,6 +6,7 @@ import { useMemo } from 'react'
 import { useStore } from '../../store/useStore.ts'
 import { buildTree, type TreeNode } from '../../lib/tree.ts'
 import type { TaskRow } from '../../types.ts'
+import { categoryIndex } from '../../lib/category.ts'
 
 type Stop = { t: TaskRow; phase: string | null }
 type Row =
@@ -15,10 +16,11 @@ type Row =
 
 function collectStops(rows: TaskRow[], projectId: string): Stop[] {
   const out: Stop[] = []
+  const cat = categoryIndex(rows)
   const walk = (nodes: TreeNode[], path: string[]) => {
     for (const n of nodes) {
       if (n.kind === 'group') walk(n.children, [...path, n.title])
-      else if (n.tags.includes(projectId)) out.push({ t: n, phase: path[path.length - 1] ?? null })
+      else if (cat.get(n.id) === projectId) out.push({ t: n, phase: path[path.length - 1] ?? null })
     }
   }
   walk(buildTree(rows), [])

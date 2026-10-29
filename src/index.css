@@ -1564,3 +1564,30 @@ body {
   .cap-backdrop{padding-top:12px}
   .cap-recent .ns-chip{min-height:36px}
 }
+/* Home · categories strip */
+.rm .home-cats{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:10px;margin-bottom:8px}
+.rm .home-cats .flabel{margin-right:4px}
+.rm .vchip.cat{border-color:hsl(var(--h) 45% 78%)}
+.rm .vchip.cat .n{background:hsl(var(--h) 70% 92%);color:hsl(var(--h) 45% 32%)}
+.rm .vchip.cat.on{background:hsl(var(--h) 62% 48%);border-color:hsl(var(--h) 62% 48%)}
+.rm .vchip.cat.on .n{background:rgba(255,255,255,.22);color:#fff}
+.rm[data-theme="summit"] .vchip.cat{border-color:hsl(var(--h) 30% 34%)}
+.rm[data-theme="summit"] .vchip.cat .n{background:hsl(var(--h) 35% 22%);color:hsl(var(--h) 70% 78%)}
+@media (max-width:768px){.rm .home-cats{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}.rm .home-cats::-webkit-scrollbar{display:none}.rm .home-cats .vchip{flex:none}}
+
+/* Phone header: brand + actions on row 1, the Home/Plan/Inbox tabs full width on
+   row 2. One row overflowed at ~390px: the capture button sat on the title and
+   the weekly-sync button landed inside the tabs, hiding the Inbox count. */
+@media (max-width:768px){
+  .rm .rm-toprow{flex-wrap:wrap;row-gap:10px;column-gap:8px}
+  .rm .rm-brand{display:contents}
+  .rm .rm-mark{order:0;font-size:20px}
+  .rm .rm-meta{order:1;margin-left:auto;gap:6px;flex-shrink:1;min-width:0}
+  .rm .rm-tabs{order:2;flex:1 0 100%;display:grid;grid-template-columns:repeat(3,1fr)}
+  .rm .rm-tabs .rm-tab{padding:8px 6px;font-size:12px;min-height:36px}
+  .rm .rm-meta .rm-tab{padding:6px 9px;min-height:36px;white-space:nowrap}
+  .rm .rm-gear{width:36px;height:36px}
+}
+.rm .vchip.cap{border-color:var(--accent);color:var(--accent-ink)}
+.rm .vchip.cap.on{color:var(--on-accent)}
+.cap-see{align-self:flex-start}
