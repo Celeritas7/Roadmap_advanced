@@ -42,6 +42,7 @@ import { CAPTURE_ROOT } from '../../lib/capture.ts'
 import { PROJECTS, PROJECT_BY_ID } from '../../seed.ts'
 import { useMediaQuery } from '../../hooks/useMediaQuery.ts'
 import { MoveSheet, Sheet, TOP, useLongPress, useSwipe } from './parts.tsx'
+import { CompareButton } from '../compare/CompareSheet.tsx'
 import type { TaskRow } from '../../types.ts'
 
 type Choice = { id: string; label: string }
@@ -599,6 +600,7 @@ export function InboxView() {
                         {linksOf(t).map((r) => <a key={r.id} className="ns-link" href={r.url} target="_blank" rel="noreferrer">{linkLabel(r.label, r.url)}</a>)}
                       </div>
                     )}
+                    <CompareButton taskId={t.id} />
                     <div className="ib-pills">{pillsFor(t, FAMILIES, true)}</div>
                     <div className="ib-actions">
                       <button type="button" className="ns-chip on" onClick={() => pend(t, 'keep')}>Keep</button>
@@ -635,6 +637,7 @@ export function InboxView() {
               <div className="ib-row">
                 <div className="ib-pills">{pillsFor(t, FAMILIES, false)}</div>
                 <div className="ib-actions">
+                  <CompareButton taskId={t.id} />
                   <button type="button" className="ns-chip on" onClick={() => pend(t, 'keep')}>Keep</button>
                   <select className="ns-sel ib-move" value="" onChange={(e) => onMove(t.id, e.target.value)} aria-label="Move to folder">
                     <option value="">Move to…</option>
@@ -820,6 +823,7 @@ function ReviewCard({ t, flash = false, phone, pos, total, folder, links, quick,
           {links.map((r) => <a key={r.id} className="ns-link" href={r.url} target="_blank" rel="noreferrer">{linkLabel(r.label, r.url)}</a>)}
         </div>
       )}
+      <CompareButton taskId={t.id} />
       {quick}
       <div className="ib-pills">{pills}</div>
       <p className="ns-note ib-keys">Keys: <kbd>1</kbd> quick · <kbd>2</kbd> medium · <kbd>3</kbd> deep effort · <kbd>u</kbd> undo · <kbd>Esc</kbd> list</p>

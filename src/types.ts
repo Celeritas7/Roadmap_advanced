@@ -387,3 +387,41 @@ declare global {
   }
   const __BUILD_ID__: string
 }
+// Product comparisons (migration 0008). A comparison belongs to one task and
+// holds the products studied for it; weights are criterion → 0 (ignore) … 3.
+export type Comparison = {
+  id: string
+  task_id: string | null
+  title: string
+  need: string | null
+  weights: Record<string, number>
+  source: string | null
+  notes: string | null
+  chosen_item: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ComparisonItem = {
+  id: string
+  comparison_id: string
+  name: string
+  brand: string | null
+  model: string | null
+  image_url: string | null
+  url: string | null
+  shop: string | null
+  price: number | null
+  currency: string
+  quality: number | null
+  life_years: number | null
+  warranty_months: number | null
+  size: string | null
+  rating: number | null
+  review_count: number | null
+  pros: string[]
+  cons: string[]
+  extra: Record<string, unknown>
+  notes: string | null
+  position: number
+}

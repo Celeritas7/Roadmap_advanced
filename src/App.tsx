@@ -23,6 +23,7 @@ import { NowStrip } from './features/home/NowStrip.tsx'
 import { InboxView } from './features/inbox/InboxView.tsx'
 import { CaptureSheet } from './features/capture/CaptureSheet.tsx'
 import { SearchSheet } from './features/search/SearchSheet.tsx'
+import { CompareSheet } from './features/compare/CompareSheet.tsx'
 
 const search = new URLSearchParams(window.location.search)
 const planParam = search.get('plan')
@@ -147,6 +148,7 @@ export default function App() {
       <div className="rm-scroll">
         {ready && !loadFailed && <CaptureSheet />}
         {ready && !loadFailed && <SearchSheet />}
+        {ready && !loadFailed && <CompareSheet />}
         <header className="rm-header">
           <Header />
           {view !== 'home' && <RolesTier />}
