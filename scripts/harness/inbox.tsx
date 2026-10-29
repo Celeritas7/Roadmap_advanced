@@ -53,6 +53,8 @@ useStore.setState({
     useStore.setState({ tree: useStore.getState().tree.filter((t) => !gone.has(t.id)) })
   },
   addTask: async (parent_id: string | null, title: string, tags: string[] = []) => {
+    const w = window as unknown as { failNext?: number }
+    if (w.failNext) { w.failNext--; throw new TypeError('Failed to fetch') }   // simulate a dropped connection
     const id = 'cap' + ++n
     const now = new Date(Date.now() + n).toISOString()   // distinct, increasing, so 'newest' sorts are testable
     useStore.setState({ tree: [...useStore.getState().tree, { ...row(id, title, parent_id, 'task', tags, 99), created_at: now }] })
