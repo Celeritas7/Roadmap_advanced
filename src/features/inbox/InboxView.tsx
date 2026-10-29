@@ -127,6 +127,8 @@ export function InboxView() {
   const [hintSeen, setHintSeen] = useState(() => readLS(HINT_KEY) === '1')
   const [expanded, setExpanded] = useState<string | null>(null)   // phone list: the one open row
   const [sheet, setSheet] = useState<SheetState>(null)
+  const focusId = useStore((s) => s.focusId)   // set by a search jump
+  const [flash, setFlash] = useState<string | null>(null)
   const [rulesOpen, setRulesOpen] = useState(false)   // phone review: show every rule, not just the set ones
   const [sort, setSort] = useState<SortKey>('folder')
   const [cursor, setCursor] = useState(0)   // review position in the ordered list
@@ -251,6 +253,20 @@ export function InboxView() {
   const at = visible.length ? Math.min(cursor, visible.length - 1) : 0
   const current = mode === 'review' ? visible[at] : undefined
   const step = (d: number) => setCursor(visible.length ? (at + d + visible.length) % visible.length : 0)
+  // A search jump: show that item (review → move to it; list → open and
+  // scroll to it), highlight it briefly, then forget the request.
+  useEffect(() => {
+    if (!focusId) return
+    const i = visible.findIndex((t) => t.id === focusId)
+    if (i < 0) return
+    useStore.getState().setFocus(null)
+    if (mode === 'review') setCursor(i)
+    else if (phone) setExpanded(focusId)
+    setFlash(focusId)
+    requestAnimationFrame(() => document.querySelector(`[data-task="${CSS.escape(focusId)}"]`)?.scrollIntoView({ block: 'center' }))
+    const tm = window.setTimeout(() => setFlash(null), 2200)
+    return () => window.clearTimeout(tm)
+  }, [focusId, visible.length, mode])   // eslint-disable-line react-hooks/exhaustive-deps
   const lastSingle = [...pending].filter(([, p]) => !p.batch).pop()?.[0]
   const toggle = (t: TaskRow, range: boolean) => {
     const next = new Set(selected)
@@ -502,6 +518,7 @@ export function InboxView() {
           {current ? (
             <ReviewCard
               key={current.id}
+              flash={flash === current.id}
               t={current}
               phone={phone}
               pos={at + 1}
@@ -567,6 +584,7 @@ export function InboxView() {
                 folder={folder === 'all' || folder === 'captured' ? titleOf(t.parent_id) : ''}
                 summary={summary(t)}
                 stale={t.tags.includes(STALE_TAG)}
+                flash={flash === t.id}
                 selected={selected.has(t.id)}
                 selecting={selecting}
                 open={isOpen}
@@ -593,7 +611,7 @@ export function InboxView() {
             )
           }
           return (
-            <li key={t.id} className={'ib-item' + (selected.has(t.id) ? ' sel' : '')}>
+            <li key={t.id} data-task={t.id} className={'ib-item' + (selected.has(t.id) ? ' sel' : '') + (flash === t.id ? ' ib-flash' : '')}>
               <div className="ib-top">
                 <input
                   type="checkbox"
@@ -687,13 +705,13 @@ export function InboxView() {
 
 // Phone list row: title and folder, the rules it has, and a quick Keep.
 // Tap opens it; press and hold selects (then taps toggle selection).
-function CompactRow({ t, folder, summary, stale, selected, selecting, open, onSelect, onTap, onKeep, children }: {
-  t: TaskRow; folder: string; summary: string; stale: boolean; selected: boolean; selecting: boolean; open: boolean
+function CompactRow({ t, folder, summary, stale, flash, selected, selecting, open, onSelect, onTap, onKeep, children }: {
+  t: TaskRow; folder: string; summary: string; stale: boolean; flash: boolean; selected: boolean; selecting: boolean; open: boolean
   onSelect: () => void; onTap: () => void; onKeep: () => void; children: ReactNode
 }) {
   const press = useLongPress(onSelect, onTap)
   return (
-    <li className={'ib-item ib-c' + (selected ? ' sel' : '') + (open ? ' open' : '')}>
+    <li data-task={t.id} className={'ib-item ib-c' + (selected ? ' sel' : '') + (open ? ' open' : '') + (flash ? ' ib-flash' : '')}>
       <div className="ib-c-row" {...press}>
         {selecting && (
           <input type="checkbox" className="ib-check" checked={selected} onChange={onSelect} aria-label={`Select ${t.title}`} />
@@ -769,8 +787,8 @@ function Pill({ family, value, open, onOpen, onPick, labeled = false }: {
 // One item, large, with the engine's current context beside it. On a phone
 // it fills the screen: swipe right keeps, left deletes, and the three big
 // buttons sit at the bottom where the thumb is.
-function ReviewCard({ t, phone, pos, total, folder, links, quick, pills, onKeep, onDelete, onSkip, onBack }: {
-  t: TaskRow; phone: boolean; pos: number; total: number; folder: string
+function ReviewCard({ t, flash = false, phone, pos, total, folder, links, quick, pills, onKeep, onDelete, onSkip, onBack }: {
+  t: TaskRow; flash?: boolean; phone: boolean; pos: number; total: number; folder: string
   links: { id: string; label: string; url: string }[]
   quick: ReactNode
   pills: ReactNode
@@ -781,7 +799,8 @@ function ReviewCard({ t, phone, pos, total, folder, links, quick, pills, onKeep,
   const swipe = useSwipe(onDelete, onKeep)
   return (
     <article
-      className={'ib-review' + (swipe.dir ? ' swipe-' + swipe.dir : '')}
+      data-task={t.id}
+      className={'ib-review' + (swipe.dir ? ' swipe-' + swipe.dir : '') + (flash ? ' ib-flash' : '')}
       aria-label={`Reviewing ${pos} of ${total}`}
       style={phone ? swipe.style : undefined}
       {...(phone ? swipe.handlers : {})}

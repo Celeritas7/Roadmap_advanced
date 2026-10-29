@@ -18,6 +18,7 @@ export function Header() {
   const setView = useStore((s) => s.setView)
   const inboxCount = useStore((s) => s.tree.filter(isInboxItem).length)
   const setCaptureOpen = useStore((s) => s.setCaptureOpen)
+  const setSearchOpen = useStore((s) => s.setSearchOpen)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const today = new Date()
@@ -42,9 +43,9 @@ export function Header() {
               <path d="M5 16.6C5 11 9 9 12 9s5-1.6 5-4" strokeDasharray="0.1 3.4" />
             </svg>
           </span>
-          Roadmap
+          <span className="rm-word">Roadmap</span>
         </h1>
-        <span className="rm-kbd">⌘K to jump</span>
+        <button type="button" className="rm-kbd" onClick={() => setSearchOpen(true)}>⌘K to search</button>
         {/* V2-B nav: Home | Plan (Contexts parked) */}
         <div className="rm-tabs" role="tablist" aria-label="View">
           {(['home', 'plan', 'inbox'] as const).map((id) => (
@@ -66,6 +67,16 @@ export function Header() {
       <div className="rm-meta">
         <span className="rm-datepill">{pill}</span>
         <span className="rm-week">{week}</span>
+        <button
+          type="button"
+          className="rm-search"
+          title="Search (⌘K or /)"
+          aria-label="Search tasks"
+          aria-haspopup="dialog"
+          onClick={() => setSearchOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
+        </button>
         <button
           type="button"
           className="rm-capture"

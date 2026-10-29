@@ -22,6 +22,7 @@ import { bootHub } from './lib/rmHub.ts'
 import { NowStrip } from './features/home/NowStrip.tsx'
 import { InboxView } from './features/inbox/InboxView.tsx'
 import { CaptureSheet } from './features/capture/CaptureSheet.tsx'
+import { SearchSheet } from './features/search/SearchSheet.tsx'
 
 const search = new URLSearchParams(window.location.search)
 const planParam = search.get('plan')
@@ -71,6 +72,20 @@ export default function App() {
     if (!ready) return
     if (search.has('capture')) useStore.getState().setCaptureOpen(true)
     const onKey = (e: KeyboardEvent) => {
+      // Search: ⌘K / Ctrl+K from anywhere (even while typing), "/" otherwise.
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey) && !e.altKey) {
+        e.preventDefault()
+        const st = useStore.getState()
+        if (!st.captureOpen) st.setSearchOpen(!st.searchOpen)
+        return
+      }
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
+        if (useStore.getState().captureOpen || document.querySelector('[role="dialog"]')) return
+        e.preventDefault()
+        useStore.getState().setSearchOpen(true)
+        return
+      }
       if (e.key !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return
       if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
       if (useStore.getState().captureOpen || document.querySelector('[role="dialog"]')) return
@@ -131,6 +146,7 @@ export default function App() {
     <div className="rm" data-theme={theme} data-role={role}>
       <div className="rm-scroll">
         {ready && !loadFailed && <CaptureSheet />}
+        {ready && !loadFailed && <SearchSheet />}
         <header className="rm-header">
           <Header />
           {view !== 'home' && <RolesTier />}

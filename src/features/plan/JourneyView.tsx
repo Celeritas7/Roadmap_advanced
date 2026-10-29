@@ -102,7 +102,7 @@ export function JourneyView({ projectId }: { projectId: string }) {
         const here = i === hereIdx
         const cls = 'jstop' + (t.done ? ' done' : '') + (here ? ' here' : '')
         return (
-          <div key={t.id} className={cls} style={{ top: r.y }}>
+          <div key={t.id} data-task={t.id} className={cls} style={{ top: r.y }}>
             <button
               type="button"
               className="jck"

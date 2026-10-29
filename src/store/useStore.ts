@@ -80,6 +80,11 @@ export type StoreState = {
   // Resolves to the new task's id (for Undo), or null for a blank line.
   capture: (line: string) => Promise<{ id: string; folder: string } | null>
   captureOpen: boolean
+  searchOpen: boolean
+  setSearchOpen: (open: boolean) => void
+  // A task to bring into view and highlight once (set by a search jump).
+  focusId: string | null
+  setFocus: (id: string | null) => void
   setCaptureOpen: (open: boolean) => void
   addFolder: (parentId: string | null, title: string, tags?: string[]) => Promise<string>
   updateTask: (id: string, patch: TaskUpdate) => Promise<void>
@@ -290,6 +295,10 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   captureOpen: false,
+  searchOpen: false,
+  setSearchOpen: (open) => set({ searchOpen: open }),
+  focusId: null,
+  setFocus: (id) => set({ focusId: id }),
   setCaptureOpen: (open) => set({ captureOpen: open }),
 
   // Captures run one at a time, so two quick Enters can't both create the
