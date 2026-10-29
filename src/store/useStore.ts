@@ -26,7 +26,7 @@ import { isDaily, dayKey, prevDayKey } from '../lib/dailyReset.ts'
 import { readStoredRoadView, storeRoadView, type RoadViewId } from '../features/home/roadViews.ts'
 import { hubAddrOf, tickMirror } from '../lib/rmHub.ts'
 import { markDone } from '../lib/suggester.ts'
-import { CAPTURE_ROOT, guessCapture } from '../lib/capture.ts'
+import { CAPTURE_ROOT, guessCapture, isNetworkError } from '../lib/capture.ts'
 
 export type ThemeName = 'trailhead' | 'summit' | 'fieldguide'
 
@@ -295,7 +295,7 @@ export const useStore = create<StoreState>((set, get) => ({
   // Captures run one at a time, so two quick Enters can't both create the
   // Captured root or the same sub-folder.
   capture: (line) => {
-    const run = captureChain.then(() => doCapture(line))
+    const run = captureChain.then(() => captureWithRetry(line))
     captureChain = run.catch(() => undefined)
     return run
   },
@@ -577,6 +577,24 @@ async function runDailyReset(
 // Quick-capture worker (see StoreState.capture); kept outside the store
 // object so capture() can chain calls through captureChain.
 let captureChain: Promise<unknown> = Promise.resolve()
+// A request that never reached the server (Wi-Fi blip, device just woke) is
+// retried once after a short wait. Folders made on the first try are reused,
+// so the retry adds nothing twice. The capture sheet owns the message, so the
+// app-wide error banner is cleared either way.
+async function captureWithRetry(line: string): Promise<{ id: string; folder: string } | null> {
+  try {
+    return await doCapture(line)
+  } catch (e) {
+    if (!isNetworkError(e)) throw e
+    await new Promise((r) => setTimeout(r, 1500))
+    try {
+      return await doCapture(line)
+    } finally {
+      useStore.setState({ error: null })
+    }
+  }
+}
+
 async function doCapture(line: string): Promise<{ id: string; folder: string } | null> {
   const get = useStore.getState
   const g = guessCapture(line)

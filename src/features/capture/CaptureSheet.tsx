@@ -4,7 +4,7 @@
 // can be undone for a few seconds. A live preview shows where it will go.
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../../store/useStore.ts'
-import { guessCapture } from '../../lib/capture.ts'
+import { guessCapture, isNetworkError, NETWORK_MESSAGE, splitCapture } from '../../lib/capture.ts'
 
 const UNDO_MS = 6000
 type Recent = { id: string; title: string; folder: string; timer: number }
@@ -30,23 +30,34 @@ export function CaptureSheet() {
   useEffect(() => () => { for (const r of recentRef.current) window.clearTimeout(r.timer) }, [])
 
   if (!open) return null
-  const g = guessCapture(line)
+  const pieces = splitCapture(line)
+  const g = pieces.length === 1 ? guessCapture(pieces[0]) : null
 
   const save = async () => {
-    const text = line
-    if (!guessCapture(text)) return
+    const pieces = splitCapture(line)
+    if (!pieces.length) return
     setLine('')
     setError('')
-    try {
-      const res = await capture(text)
-      if (!res) return
-      const title = guessCapture(text)!.title
-      const timer = window.setTimeout(() => setRecent((rs) => rs.filter((r) => r.id !== res.id)), UNDO_MS)
-      setRecent((rs) => [{ id: res.id, title, folder: res.folder, timer }, ...rs].slice(0, 4))
-      setSaved((n) => n + 1)
-    } catch (e) {
-      setLine(text)   // keep what was typed so nothing is lost
-      setError((e as Error).message || "Couldn't save — try again.")
+    const failed: string[] = []
+    let err: unknown = null
+    // One at a time, in order; a piece that fails goes back in the box.
+    for (const text of pieces) {
+      try {
+        const res = await capture(text)
+        if (!res) continue
+        const title = guessCapture(text)!.title
+        const timer = window.setTimeout(() => setRecent((rs) => rs.filter((r) => r.id !== res.id)), UNDO_MS)
+        setRecent((rs) => [{ id: res.id, title, folder: res.folder, timer }, ...rs].slice(0, 6))
+        setSaved((n) => n + 1)
+      } catch (e) {
+        failed.push(text)
+        err = e
+      }
+    }
+    if (failed.length) {
+      setLine(failed.join(', '))   // keep what didn't save so nothing is lost
+      const msg = isNetworkError(err) ? NETWORK_MESSAGE : `Couldn't save: ${(err as Error)?.message || 'unknown error'}. Your text is kept.`
+      setError(failed.length < pieces.length ? `${pieces.length - failed.length} saved. ${msg}` : msg)
     }
     input.current?.focus()
   }
@@ -72,13 +83,15 @@ export function CaptureSheet() {
             enterKeyHint="done"
             autoComplete="off"
           />
-          <button type="submit" className="ns-chip on" disabled={!g}>Add</button>
+          <button type="submit" className="ns-chip on" disabled={!pieces.length}>{pieces.length > 1 ? `Add ${pieces.length}` : 'Add'}</button>
           <button type="button" className="ns-chip" onClick={() => setOpen(false)} aria-label="Close">Done</button>
         </form>
         <p className="cap-preview" aria-live="polite">
-          {g
+          {pieces.length > 1
+            ? <>→ Inbox · <strong>{pieces.length} separate items</strong> (split at commas)</>
+            : g
             ? <>→ Inbox › <strong>{g.folder}</strong>{g.tags.map((t) => ` · ${TAG_LABEL[t] ?? t}`).join('')}</>
-            : <>Saved items wait in the <strong>Inbox</strong> under Captured. Enter saves and keeps the box open. <kbd>!</kbd> marks high priority.</>}
+            : <>Saved items wait in the <strong>Inbox</strong> under Captured. Commas make separate items. <kbd>!</kbd> marks high priority.</>}
         </p>
         {error && <p className="cap-error" role="alert">{error}</p>}
         {recent.length > 0 && (

@@ -1,5 +1,5 @@
 // Unit test for lib/capture.ts. Run: node --experimental-strip-types scripts/harness/capture.test.mjs
-import { guessCapture } from '../../src/lib/capture.ts'
+import { guessCapture, splitCapture, isNetworkError } from '../../src/lib/capture.ts'
 const cases = [
   ['buy tissue paper', 'shop', ['outside', 'short-burst'], false],
   ['Buy facewash !', 'shop', ['outside', 'short-burst', 'high'], true],
@@ -19,6 +19,22 @@ for (const [line, cat, tags, high] of cases) {
   const ok = cat === null ? g === null : g && g.category === cat && JSON.stringify(g.tags) === JSON.stringify(tags) && g.high === high && !g.title.includes('!')
   if (!ok) { fail++; console.log('FAIL', JSON.stringify(line), '→', JSON.stringify(g)) }
   else console.log('ok  ', JSON.stringify(line), '→', g ? g.category : null)
+}
+const splits = [
+  ['trail1, trail2, trail3', ['trail1', 'trail2', 'trail3']],
+  ['buy milk、卵，bread ;  ,, ', ['buy milk', '卵', 'bread']],
+  ['visit Itoya\nfix login !', ['visit Itoya', 'fix login !']],
+  ['call mama', ['call mama']],
+  [' , !! , ', []],
+]
+for (const [text, want] of splits) {
+  const got = splitCapture(text)
+  const ok = JSON.stringify(got) === JSON.stringify(want)
+  if (!ok) { fail++; console.log('FAIL split', JSON.stringify(text), '→', JSON.stringify(got)) } else console.log('ok   split', JSON.stringify(text), '→', got.length)
+}
+const net = [[new TypeError('Failed to fetch'), true], [new TypeError('NetworkError when attempting to fetch resource.'), true], [new TypeError('Load failed'), true], [new Error('new row violates row-level security policy'), false], [null, false]]
+for (const [e, want] of net) {
+  if (isNetworkError(e) !== want) { fail++; console.log('FAIL isNetworkError', String(e)) } else console.log('ok   isNetworkError', String(e), want)
 }
 if (fail) { console.log(fail + ' failed'); process.exit(1) }
 console.log('all passed')

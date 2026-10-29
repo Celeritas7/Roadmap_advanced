@@ -45,3 +45,19 @@ export function guessCapture(line: string): Capture | null {
     high,
   }
 }
+
+/** One typed line → separate captures. Splits on commas (also 、 and ，),
+ *  semicolons and new lines; blanks are dropped. "!" stays with its own piece. */
+export function splitCapture(text: string): string[] {
+  return text.split(/[,，、;；\n]+/).map((s) => s.trim()).filter((s) => guessCapture(s) !== null)
+}
+
+/** True when the request never reached the server: offline, Wi-Fi dropped,
+ *  device just woke, or a blocker. Chrome says "Failed to fetch", Firefox
+ *  "NetworkError…", Safari "Load failed". */
+export function isNetworkError(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : String(e ?? '')
+  return /failed to fetch|networkerror|load failed|network request failed|fetch failed/i.test(m)
+}
+
+export const NETWORK_MESSAGE = "Couldn't reach the server. Check your connection and tap Add again. Your text is kept."

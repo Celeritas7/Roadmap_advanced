@@ -209,6 +209,26 @@ const hb = await p.evaluate(() => { const r = (sel) => document.querySelector(se
 check('phone header: capture button clears the title and tabs sit on their own row', hb.cap.left >= hb.mark.right && hb.tabs.top >= hb.cap.bottom && hb.tabs.right <= 390)
 await p.setViewportSize({ width: 1100, height: 900 })
 
+// Commas split one line into separate captures; a dropped connection retries once, then explains.
+await p.locator('.rm-capture').click()
+const cap3 = p.getByLabel('Capture a task')
+const n0 = (await tree()).length
+await cap3.fill('trail1, trail2, trail3')
+check('preview says the line becomes 3 items', /3 separate items/.test(await p.locator('.cap-preview').textContent()) && (await p.getByRole('button', { name: 'Add 3' }).count()) === 1)
+await cap3.press('Enter')
+await p.waitForFunction((n) => window.rmStore.getState().tree.length >= n + 3, n0)
+const titles = (await tree()).map((t) => t.title)
+check('commas save three separate tasks', ['trail1', 'trail2', 'trail3'].every((x) => titles.includes(x)))
+await p.evaluate(() => { window.failNext = 1 })
+await cap3.fill('retry me'); await cap3.press('Enter')
+await p.waitForFunction(() => window.rmStore.getState().tree.some((t) => t.title === 'retry me'), null, { timeout: 5000 })
+check('one dropped request is retried and saves with no error', (await p.locator('.cap-error').count()) === 0)
+await p.evaluate(() => { window.failNext = 2 })
+await cap3.fill('offline item'); await cap3.press('Enter')
+await p.locator('.cap-error').waitFor({ timeout: 5000 })
+check('a second failure shows the friendly message and keeps the text', /Couldn't reach the server/.test(await p.locator('.cap-error').textContent()) && (await cap3.inputValue()) === 'offline item' && !(await tree()).some((t) => t.title === 'offline item'))
+await p.locator('.cap-sheet').getByRole('button', { name: 'Close' }).click()
+
 await p.screenshot({ path: 'scripts/harness/inbox.png', fullPage: true })
 await b.close()
 if (fails.length) { console.error('\n' + fails.length + ' failed'); process.exit(1) }
