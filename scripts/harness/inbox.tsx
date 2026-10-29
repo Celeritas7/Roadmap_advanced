@@ -6,6 +6,7 @@ import { InboxView } from '../../src/features/inbox/InboxView.tsx'
 import { CaptureSheet } from '../../src/features/capture/CaptureSheet.tsx'
 import { HomeView } from '../../src/features/home/HomeView.tsx'
 import { Header } from '../../src/features/header/Header.tsx'
+import { SearchSheet } from '../../src/features/search/SearchSheet.tsx'
 import { useStore } from '../../src/store/useStore.ts'
 import type { TaskRow, TaskUpdate } from '../../src/types.ts'
 import '../../src/index.css'
@@ -69,5 +70,5 @@ useStore.setState({
 useStore.setState({ hubState: 'live' })
 ;(window as unknown as { rmStore: typeof useStore }).rmStore = useStore
 createRoot(document.getElementById('root')!).render(
-  <div className="rm" data-theme="trailhead" data-role="attackers"><div className="rm-scroll"><header className="rm-header"><Header /></header><main className="rm-pad"><CaptureSheet /><InboxView /><section data-harness="home"><HomeView /></section></main></div></div>,
+  <div className="rm" data-theme="trailhead" data-role="attackers"><div className="rm-scroll"><header className="rm-header"><Header /></header><main className="rm-pad"><CaptureSheet /><SearchSheet /><InboxView /><section data-harness="home"><HomeView /></section></main></div></div>,
 )

@@ -20,6 +20,20 @@ export function PlanWindow({ projectId }: { projectId: string }) {
     if (p) document.title = `${p.label} · Roadmap`
   }, [p])
 
+  // ?focus=<task id> (from search): scroll that stop into view and highlight it
+  // once the tree has rendered.
+  const focus = new URLSearchParams(window.location.search).get('focus')
+  const loaded = tree.length > 0
+  useEffect(() => {
+    if (!focus || !loaded) return
+    const el = document.querySelector(`[data-task="${CSS.escape(focus)}"]`)
+    if (!el) return
+    el.scrollIntoView({ block: 'center' })
+    el.classList.add('jfocus')
+    const tm = window.setTimeout(() => el.classList.remove('jfocus'), 2600)
+    return () => window.clearTimeout(tm)
+  }, [focus, loaded])
+
   if (!p) {
     return (
       <div className="empty">

@@ -69,7 +69,7 @@ function MultiRoad({ seq, showLang, onToggle }: {
         const here = i === hereIdx
         const cls = 'jstop' + (t.done ? ' done' : '') + (here ? ' here' : '')
         return (
-          <div key={t.id} className={cls} style={{ top: r.cy }}>
+          <div key={t.id} data-task={t.id} className={cls} style={{ top: r.cy }}>
             <button
               type="button"
               className="jck"
