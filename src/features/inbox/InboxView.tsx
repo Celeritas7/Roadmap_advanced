@@ -1,4 +1,12 @@
 // Inbox — Roadmap's own tasks tagged `parked` (e.g. the OneNote import).
+//
+// Phone redesign (≤768px): Review is the default view, a full-height card
+// with one-tap "File as" categories (sets the category and keeps), swipe
+// right/left to keep/delete, and Delete · Skip · Keep at the bottom. Only the
+// rules an item has show, labeled; "＋ Rules" opens the rest. The list is
+// compact rows (tap opens, press-and-hold selects), folders are one
+// dropdown, Move and bulk actions are bottom sheets (parts.tsx). Laptops keep
+// the full cards described below.
 // Each row: keep (unpark → the suggester may pick it) or delete, and the
 // rules the engine reads, all stored as tags: place · effort · device ·
 // energy. "Move to" re-parents a task under any folder (or a new one).
@@ -31,7 +39,9 @@ import { dayKey } from '../../lib/dailyReset.ts'
 import { readCheckin, resolvePlace } from '../../lib/suggester.ts'
 import { KEPT_TAG, STALE_DAYS, STALE_TAG } from '../../lib/stale.ts'
 import { CAPTURE_ROOT } from '../../lib/capture.ts'
-import { PROJECTS } from '../../seed.ts'
+import { PROJECTS, PROJECT_BY_ID } from '../../seed.ts'
+import { useMediaQuery } from '../../hooks/useMediaQuery.ts'
+import { MoveSheet, Sheet, TOP, useLongPress, useSwipe } from './parts.tsx'
 import type { TaskRow } from '../../types.ts'
 
 type Choice = { id: string; label: string }
@@ -60,13 +70,21 @@ export const linkLabel = (label: string, url: string): string => {
 }
 
 const NEW = '__new__'
-const TOP = '__top__'
 const UNDO_MS = 5000
 type SortKey = 'folder' | 'oldest' | 'newest' | 'links'
 const SORTS: { id: SortKey; label: string }[] = [
   { id: 'folder', label: 'by folder' }, { id: 'oldest', label: 'oldest first' },
   { id: 'newest', label: 'newest first' }, { id: 'links', label: 'with links first' },
 ]
+// One-tap filing on the review card: the categories most Inbox items land in.
+// The rest are under "More". (lib/category.ts: an own tag beats the folder's.)
+const QUICK = ['shop', 'place', 'lang', 'dx', 'food'].filter((id) => id in PROJECT_BY_ID)
+const CATEGORY_IDS = PROJECTS.map((p) => p.id)
+const MODE_KEY = 'rm-inbox-mode'
+const HINT_KEY = 'rm-inbox-hint-seen'
+const readLS = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
+const writeLS = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* private mode */ } }
+type SheetState = { kind: 'move'; target: string } | { kind: 'more' } | { kind: 'file'; id: string } | null
 const REVIEWED_KEY = () => 'rm-inbox-reviewed-' + dayKey()
 const readReviewed = () => { try { return Number(localStorage.getItem(REVIEWED_KEY()) || 0) } catch { return 0 } }
 
@@ -99,7 +117,17 @@ export function InboxView() {
   const [open, setOpen] = useState<{ id: string; key: string } | null>(null)   // the one open pill picker
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchor, setAnchor] = useState<string | null>(null)   // last checkbox clicked, for shift-ranges
-  const [mode, setMode] = useState<'list' | 'review'>('list')
+  // Phones get review first, compact rows, sheets instead of selects; laptops keep the full cards.
+  const phone = useMediaQuery('(max-width: 768px)')
+  const [mode, setModeRaw] = useState<'list' | 'review'>(() => {
+    const m = readLS(MODE_KEY)
+    return m === 'list' || m === 'review' ? m : window.matchMedia('(max-width: 768px)').matches ? 'review' : 'list'
+  })
+  const setMode = (m: 'list' | 'review') => { setModeRaw(m); writeLS(MODE_KEY, m) }
+  const [hintSeen, setHintSeen] = useState(() => readLS(HINT_KEY) === '1')
+  const [expanded, setExpanded] = useState<string | null>(null)   // phone list: the one open row
+  const [sheet, setSheet] = useState<SheetState>(null)
+  const [rulesOpen, setRulesOpen] = useState(false)   // phone review: show every rule, not just the set ones
   const [sort, setSort] = useState<SortKey>('folder')
   const [cursor, setCursor] = useState(0)   // review position in the ordered list
   const [reviewed, setReviewed] = useState(readReviewed)
@@ -161,6 +189,14 @@ export function InboxView() {
     const timer = window.setTimeout(() => { commit(t.id, kind); settle(t.id) }, UNDO_MS)
     setPending((m) => new Map(m).set(t.id, { kind, timer }))
     setLive(`${kind === 'keep' ? 'Kept' : 'Deleted'}: ${t.title}. Undo available.`)
+  }
+  // File = set the category and keep, in one tap. The category write is
+  // immediate; the keep waits on the Undo strip like any other keep.
+  const file = (t: TaskRow, cat: string) => {
+    ok(updateTask(t.id, { tags: withPick(t, CATEGORY_IDS, cat) }))
+    pend(t, 'keep')
+    setRulesOpen(false)
+    setLive(`Filed under ${PROJECT_BY_ID[cat]?.label ?? cat} and kept: ${t.title}. Undo available.`)
   }
   const undo = (t: TaskRow) => {
     const p = pendingRef.current.get(t.id)
@@ -282,14 +318,17 @@ export function InboxView() {
     else if (target === 'selection') { if (parent !== null) reparentMany(sel, parent) }
     else if (parent !== null) reparent(target, parent)
   }
+  const moveToNew = async (target: string, title: string) => {
+    const id = await addFolder(null, title)
+    if (target === 'folder') { if (picked) reparent(picked.id, id) }
+    else if (target === 'selection') reparentMany(sel, id)
+    else reparent(target, id)
+  }
   const saveNew = async () => {
     if (!newFor) return
     const title = newFor.title.trim()
     if (!title) return
-    const id = await addFolder(null, title)
-    if (newFor.target === 'folder') { if (picked) reparent(picked.id, id) }
-    else if (newFor.target === 'selection') reparentMany(sel, id)
-    else reparent(newFor.target, id)
+    await moveToNew(newFor.target, title)
     setNewFor(null)
   }
   const keepAll = () => pendBatch(shown, 'keep')
@@ -297,7 +336,7 @@ export function InboxView() {
   // Review-mode keys. Ignored while typing, in a select, or with a picker open.
   const keyRef = useRef<(e: globalThis.KeyboardEvent) => void>(() => {})
   keyRef.current = (e) => {
-    if (mode !== 'review' || open || newFor) return
+    if (mode !== 'review' || open || newFor || sheet) return
     const el = e.target as HTMLElement
     if (el.closest('input, select, textarea') || e.metaKey || e.ctrlKey || e.altKey) return
     const k = e.key.toLowerCase()
@@ -319,6 +358,16 @@ export function InboxView() {
     return () => document.removeEventListener('keydown', h)
   }, [])
 
+  const ruleSelect = (
+    <select className="ns-sel" value="" onChange={(e) => { if (e.target.value) setRuleMany(e.target.value) }} aria-label="Set a rule on selected">
+      <option value="">Set rule…</option>
+      {FAMILIES.map((f) => (
+        <optgroup key={f.key} label={f.label}>
+          {f.choices.map((c) => <option key={c.id || 'none'} value={`${f.key}:${c.id}`}>{c.label}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  )
   const moveOptions = (top: boolean) => (
     <>
       {top && <option value={TOP}>Main list (top level)</option>}
@@ -342,45 +391,95 @@ export function InboxView() {
     </form>
   )
 
+  const pillsFor = (t: TaskRow, fams: Family[], labeled: boolean) => fams.map((f) => (
+    <Pill
+      key={f.key}
+      family={f}
+      labeled={labeled}
+      value={pickOf(t, f.ids)}
+      open={open?.id === t.id && open.key === f.key}
+      onOpen={(o) => setOpen(o ? { id: t.id, key: f.key } : null)}
+      onPick={(v) => { set(t, f.ids, v); setOpen(null) }}
+    />
+  ))
+  // Rules the item actually has, as "home · quick" — the compact row's second line.
+  const summary = (t: TaskRow) => FAMILIES.map((f) => f.choices.find((c) => c.id && c.id === pickOf(t, f.ids))?.label).filter(Boolean).join(' · ')
+  const linksOf = (t: TaskRow) => resources.filter((r) => r.task_id === t.id)
+  const selecting = sel.length > 0
+  const sheetTask = sheet?.kind === 'file' ? byId.get(sheet.id) : undefined
+  const moveTitle = (target: string) => target === 'selection' ? `Move ${sel.length} items to…` : target === 'folder' ? `Move folder “${picked?.title ?? ''}” to…` : `Move “${byId.get(target)?.title ?? ''}” to…`
+  const quick = (t: TaskRow) => (
+    <div className="ib-file" role="group" aria-label="File under a category and keep">
+      <span className="ns-k">File as</span>
+      {QUICK.map((id) => (
+        <button key={id} type="button" className="ns-chip ib-file-b" style={{ ['--h' as string]: PROJECT_BY_ID[id].hue }} onClick={() => file(t, id)}>
+          {PROJECT_BY_ID[id].label}
+        </button>
+      ))}
+      <button type="button" className="ns-chip" onClick={() => setSheet({ kind: 'file', id: t.id })}>More…</button>
+    </div>
+  )
+
   return (
-    <section className="inbox">
+    <section className={'inbox' + (phone ? ' phone' : '')}>
       <div className="ib-head">
-        <h2 className="ib-title">Inbox <span className="n">{items.length}</span></h2>
-        <p className="ib-hint">Parked items are never suggested. <strong>Keep</strong> puts one into the suggestions; <strong>Delete</strong> removes it. Both can be undone for a few seconds.</p>
+        <h2 className="ib-title">
+          Inbox <span className="n">{items.length}</span>
+          {phone && <span className="ib-done-n">{reviewed} decided today</span>}
+        </h2>
+        {!hintSeen && (
+          <p className="ib-hint">
+            Parked items are never suggested. <strong>Keep</strong> puts one into the suggestions; <strong>Delete</strong> removes it. Both can be undone for a few seconds.
+            {phone && <> Swipe a card right to keep, left to delete.</>}
+            <button type="button" className="ib-hint-x" onClick={() => { setHintSeen(true); writeLS(HINT_KEY, '1') }}>Got it</button>
+          </p>
+        )}
         <div className="ib-tools">
           <div className="ib-modes" role="group" aria-label="View">
-            {(['list', 'review'] as const).map((m) => (
+            {(phone ? (['review', 'list'] as const) : (['list', 'review'] as const)).map((m) => (
               <button key={m} type="button" className={'ns-chip' + (mode === m ? ' on' : '')} aria-pressed={mode === m} onClick={() => { setMode(m); setCursor(0) }}>
-                {m === 'list' ? 'List' : 'Review one by one'}
+                {m === 'list' ? 'List' : phone ? 'Review' : 'Review one by one'}
               </button>
             ))}
           </div>
           <select className="ns-sel" value={sort} onChange={(e) => { setSort(e.target.value as SortKey); setCursor(0) }} aria-label="Sort">
             {SORTS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>
-          <span className="ns-note ib-count">{reviewed} decided today</span>
+          {!phone && <span className="ns-note ib-count">{reviewed} decided today</span>}
         </div>
-        <div className="ib-folders">
-          <button type="button" className={'vchip' + (folder === 'all' ? ' on' : '')} aria-pressed={folder === 'all'} onClick={() => setFolder('all')}>All <span className="n">{items.length}</span></button>
-          {capturedN > 0 && (
-            <button type="button" className={'vchip cap' + (folder === 'captured' ? ' on' : '')} aria-pressed={folder === 'captured'} onClick={() => setFolder('captured')}>
-              ＋ Captured <span className="n">{capturedN}</span>
-            </button>
-          )}
-          {folderIds.map((fid) => (
-            <button key={fid} type="button" className={'vchip' + (folder === fid ? ' on' : '')} aria-pressed={folder === fid} onClick={() => setFolder(fid)}>
-              {chipLabel(fid)} <span className="n">{count(fid)}</span>
-            </button>
-          ))}
-        </div>
+        {phone ? (
+          <select className="ns-sel ib-folder-sel" aria-label="Folder" value={folder} onChange={(e) => { setFolder(e.target.value); setCursor(0); setExpanded(null) }}>
+            <option value="all">All folders ({items.length})</option>
+            {capturedN > 0 && <option value="captured">＋ Captured ({capturedN})</option>}
+            {folderIds.map((fid) => <option key={fid} value={fid}>{chipLabel(fid)} ({count(fid)})</option>)}
+          </select>
+        ) : (
+          <div className="ib-folders">
+            <button type="button" className={'vchip' + (folder === 'all' ? ' on' : '')} aria-pressed={folder === 'all'} onClick={() => setFolder('all')}>All <span className="n">{items.length}</span></button>
+            {capturedN > 0 && (
+              <button type="button" className={'vchip cap' + (folder === 'captured' ? ' on' : '')} aria-pressed={folder === 'captured'} onClick={() => setFolder('captured')}>
+                ＋ Captured <span className="n">{capturedN}</span>
+              </button>
+            )}
+            {folderIds.map((fid) => (
+              <button key={fid} type="button" className={'vchip' + (folder === fid ? ' on' : '')} aria-pressed={folder === fid} onClick={() => setFolder(fid)}>
+                {chipLabel(fid)} <span className="n">{count(fid)}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {picked && shown.length > 0 && (
           <div className="ib-bulk">
             <span className="ns-k">This folder</span>
             <button type="button" className="ns-chip on" onClick={keepAll}>Keep all {shown.length}</button>
-            <select className="ns-sel" value="" onChange={(e) => onMove('folder', e.target.value)} aria-label="Move this folder">
-              <option value="">Move folder to…</option>
-              {moveOptions(true)}
-            </select>
+            {phone ? (
+              <button type="button" className="ns-chip" onClick={() => setSheet({ kind: 'move', target: 'folder' })}>Move folder…</button>
+            ) : (
+              <select className="ns-sel" value="" onChange={(e) => onMove('folder', e.target.value)} aria-label="Move this folder">
+                <option value="">Move folder to…</option>
+                {moveOptions(true)}
+              </select>
+            )}
             <span className="ns-note">now in {picked.parent_id ? pathOf(byId.get(picked.parent_id)!) : 'the main list'}</span>
             {newField('folder')}
           </div>
@@ -402,36 +501,40 @@ export function InboxView() {
           ))}
           {current ? (
             <ReviewCard
+              key={current.id}
               t={current}
+              phone={phone}
               pos={at + 1}
               total={visible.length}
               folder={titleOf(current.parent_id)}
-              links={resources.filter((r) => r.task_id === current.id)}
-              pills={FAMILIES.map((f) => (
-                <Pill
-                  key={f.key}
-                  family={f}
-                  value={pickOf(current, f.ids)}
-                  open={open?.id === current.id && open.key === f.key}
-                  onOpen={(o) => setOpen(o ? { id: current.id, key: f.key } : null)}
-                  onPick={(v) => { set(current, f.ids, v); setOpen(null) }}
-                />
-              ))}
+              links={linksOf(current)}
+              quick={quick(current)}
+              pills={phone ? (
+                <>
+                  {pillsFor(current, rulesOpen ? FAMILIES : FAMILIES.filter((f) => f.key !== 'category' && pickOf(current, f.ids)), true)}
+                  <button type="button" className="ib-pill ib-more" onClick={() => setRulesOpen(!rulesOpen)} aria-expanded={rulesOpen}>
+                    {rulesOpen ? 'Fewer rules' : '＋ Rules'}
+                  </button>
+                </>
+              ) : pillsFor(current, FAMILIES, false)}
               onKeep={() => pend(current, 'keep')}
               onDelete={() => pend(current, 'delete')}
-              onSkip={() => step(1)}
-              onBack={() => step(-1)}
+              onSkip={() => { step(1); setRulesOpen(false) }}
+              onBack={() => { step(-1); setRulesOpen(false) }}
             />
           ) : shown.length > 0 && <p className="rv-empty">✓ Nothing left to review in this view.</p>}
         </>
       )}
 
-      {mode === 'list' && visible.length > 0 && (
+      {mode === 'list' && visible.length > 0 && (!phone || selecting) && (
         <label className="ib-selall">
           <input type="checkbox" className="ib-check" checked={allOn} onChange={selectAll} />
           <span>{allOn ? 'Clear selection' : `Select all ${visible.length}`}</span>
-          {sel.length > 0 && !allOn && <span className="ns-note">{sel.length} selected · shift-click selects a range</span>}
+          {sel.length > 0 && !allOn && <span className="ns-note">{sel.length} selected{phone ? '' : ' · shift-click selects a range'}</span>}
         </label>
+      )}
+      {mode === 'list' && phone && !selecting && visible.length > 0 && (
+        <p className="ns-note ib-phone-tip">Tap a row to open it. Press and hold to select several.</p>
       )}
 
       {[...batches].map(([batch, b]) => (
@@ -455,6 +558,40 @@ export function InboxView() {
               </li>
             )
           }
+          if (phone) {
+            const isOpen = expanded === t.id && !selecting
+            return (
+              <CompactRow
+                key={t.id}
+                t={t}
+                folder={folder === 'all' || folder === 'captured' ? titleOf(t.parent_id) : ''}
+                summary={summary(t)}
+                stale={t.tags.includes(STALE_TAG)}
+                selected={selected.has(t.id)}
+                selecting={selecting}
+                open={isOpen}
+                onSelect={() => toggle(t, false)}
+                onTap={() => (selecting ? toggle(t, false) : setExpanded(isOpen ? null : t.id))}
+                onKeep={() => pend(t, 'keep')}
+              >
+                {isOpen && (
+                  <div className="ib-c-body">
+                    {linksOf(t).length > 0 && (
+                      <div className="ib-links">
+                        {linksOf(t).map((r) => <a key={r.id} className="ns-link" href={r.url} target="_blank" rel="noreferrer">{linkLabel(r.label, r.url)}</a>)}
+                      </div>
+                    )}
+                    <div className="ib-pills">{pillsFor(t, FAMILIES, true)}</div>
+                    <div className="ib-actions">
+                      <button type="button" className="ns-chip on" onClick={() => pend(t, 'keep')}>Keep</button>
+                      <button type="button" className="ns-chip" onClick={() => setSheet({ kind: 'move', target: t.id })}>Move to…</button>
+                      <button type="button" className="ns-chip ib-del" onClick={() => pend(t, 'delete')}>Delete</button>
+                    </div>
+                  </div>
+                )}
+              </CompactRow>
+            )
+          }
           return (
             <li key={t.id} className={'ib-item' + (selected.has(t.id) ? ' sel' : '')}>
               <div className="ib-top">
@@ -470,26 +607,15 @@ export function InboxView() {
                 {t.tags.includes(STALE_TAG) && <span className="ib-stale" title={`Kept, then untouched for ${STALE_DAYS}+ days`}>back · untouched {STALE_DAYS}d</span>}
                 {(folder === 'all' || folder === 'captured') && <span className="ib-folder">{titleOf(t.parent_id)}</span>}
               </div>
-              {resources.some((r) => r.task_id === t.id) && (
+              {linksOf(t).length > 0 && (
                 <div className="ib-links">
-                  {resources.filter((r) => r.task_id === t.id).map((r) => (
+                  {linksOf(t).map((r) => (
                     <a key={r.id} className="ns-link" href={r.url} target="_blank" rel="noreferrer">{linkLabel(r.label, r.url)}</a>
                   ))}
                 </div>
               )}
               <div className="ib-row">
-                <div className="ib-pills">
-                  {FAMILIES.map((f) => (
-                    <Pill
-                      key={f.key}
-                      family={f}
-                      value={pickOf(t, f.ids)}
-                      open={open?.id === t.id && open.key === f.key}
-                      onOpen={(o) => setOpen(o ? { id: t.id, key: f.key } : null)}
-                      onPick={(v) => { set(t, f.ids, v); setOpen(null) }}
-                    />
-                  ))}
-                </div>
+                <div className="ib-pills">{pillsFor(t, FAMILIES, false)}</div>
                 <div className="ib-actions">
                   <button type="button" className="ns-chip on" onClick={() => pend(t, 'keep')}>Keep</button>
                   <select className="ns-sel ib-move" value="" onChange={(e) => onMove(t.id, e.target.value)} aria-label="Move to folder">
@@ -505,7 +631,14 @@ export function InboxView() {
         })}
       </ul>}
 
-      {mode === 'list' && sel.length > 0 && (
+      {mode === 'list' && sel.length > 0 && (phone ? (
+        <div className="ib-bar" role="toolbar" aria-label="Selected items">
+          <span className="ib-bar-n">{sel.length} selected</span>
+          <button type="button" className="ns-chip on" onClick={() => pendBatch(sel, 'keep')}>Keep</button>
+          <button type="button" className="ns-chip" onClick={() => setSheet({ kind: 'move', target: 'selection' })}>Move…</button>
+          <button type="button" className="ns-chip" onClick={() => setSheet({ kind: 'more' })} aria-label="More actions">⋯</button>
+        </div>
+      ) : (
         <div className="ib-bar" role="toolbar" aria-label="Selected items">
           <span className="ib-bar-n">{sel.length} selected</span>
           <button type="button" className="ns-chip on" onClick={() => pendBatch(sel, 'keep')}>Keep</button>
@@ -513,27 +646,80 @@ export function InboxView() {
             <option value="">Move to…</option>
             {moveOptions(false)}
           </select>
-          <select className="ns-sel" value="" onChange={(e) => { if (e.target.value) setRuleMany(e.target.value) }} aria-label="Set a rule on selected">
-            <option value="">Set rule…</option>
-            {FAMILIES.map((f) => (
-              <optgroup key={f.key} label={f.label}>
-                {f.choices.map((c) => <option key={c.id || 'none'} value={`${f.key}:${c.id}`}>{c.label}</option>)}
-              </optgroup>
-            ))}
-          </select>
+          {ruleSelect}
           <button type="button" className="ns-chip ib-del" onClick={() => pendBatch(sel, 'delete')}>Delete</button>
           <button type="button" className="ns-chip" onClick={() => setSelected(new Set())}>Clear</button>
           {newField('selection')}
         </div>
+      ))}
+
+      {sheet?.kind === 'move' && (
+        <MoveSheet
+          title={moveTitle(sheet.target)}
+          targets={targets}
+          allowTop={sheet.target === 'folder'}
+          onPick={(v) => onMove(sheet.target, v)}
+          onNew={(name) => ok(moveToNew(sheet.target, name))}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet?.kind === 'more' && (
+        <Sheet title={`${sel.length} selected`} onClose={() => setSheet(null)}>
+          <div className="ib-sheet-list">
+            <label className="ib-sheet-row"><span className="ns-k">Set rule</span>{ruleSelect}</label>
+            <button type="button" className="ib-opt ib-del" onClick={() => { pendBatch(sel, 'delete'); setSheet(null) }}>Delete {sel.length} items</button>
+            <button type="button" className="ib-opt" onClick={() => { setSelected(new Set()); setSheet(null) }}>Clear selection</button>
+          </div>
+        </Sheet>
+      )}
+      {sheetTask && (
+        <Sheet title={`File “${sheetTask.title}” as…`} onClose={() => setSheet(null)}>
+          <div className="ib-sheet-list">
+            {PROJECTS.map((pr) => (
+              <button key={pr.id} type="button" className="ib-opt" onClick={() => { file(sheetTask, pr.id); setSheet(null) }}>{pr.label}</button>
+            ))}
+          </div>
+        </Sheet>
       )}
     </section>
   )
 }
 
+// Phone list row: title and folder, the rules it has, and a quick Keep.
+// Tap opens it; press and hold selects (then taps toggle selection).
+function CompactRow({ t, folder, summary, stale, selected, selecting, open, onSelect, onTap, onKeep, children }: {
+  t: TaskRow; folder: string; summary: string; stale: boolean; selected: boolean; selecting: boolean; open: boolean
+  onSelect: () => void; onTap: () => void; onKeep: () => void; children: ReactNode
+}) {
+  const press = useLongPress(onSelect, onTap)
+  return (
+    <li className={'ib-item ib-c' + (selected ? ' sel' : '') + (open ? ' open' : '')}>
+      <div className="ib-c-row" {...press}>
+        {selecting && (
+          <input type="checkbox" className="ib-check" checked={selected} onChange={onSelect} aria-label={`Select ${t.title}`} />
+        )}
+        <div className="ib-c-text">
+          <span className="ib-name">{t.title}</span>
+          <span className="ib-c-sub">
+            {stale && <span className="ib-stale">back · untouched</span>}
+            {[folder, summary].filter(Boolean).join(' · ')}
+          </span>
+        </div>
+        {!selecting && !open && (
+          <button type="button" className="ib-c-keep" onClick={onKeep} aria-label={`Keep ${t.title}`}>✓</button>
+        )}
+        {!selecting && <span className="ib-c-chev" aria-hidden="true">{open ? '▴' : '▾'}</span>}
+      </div>
+      {children}
+    </li>
+  )
+}
+
 // A rule as a tag pill. Unset shows the family's default, muted. Tapping
 // opens a picker of 44 px rows; arrows move, Enter picks, Esc closes.
-function Pill({ family, value, open, onOpen, onPick }: {
+function Pill({ family, value, open, onOpen, onPick, labeled = false }: {
   family: Family; value: string; open: boolean; onOpen: (o: boolean) => void; onPick: (v: string) => void
+  labeled?: boolean   // phone: say which rule it is ("Device: phone"), since the pill stands alone
 }) {
   const cur = family.choices.find((c) => c.id === value) ?? family.choices[0]
   const listRef = useRef<HTMLDivElement>(null)
@@ -556,7 +742,7 @@ function Pill({ family, value, open, onOpen, onPick }: {
         aria-label={`${family.label}: ${cur.label}`}
         onClick={() => onOpen(!open)}
       >
-        {cur.label}
+        {labeled ? <><span className="ib-pill-k">{family.label}</span> {cur.label}</> : cur.label}
       </button>
       {open && (
         <div ref={listRef} className="ib-pop" role="listbox" aria-label={family.label} onKeyDown={onKey}>
@@ -580,21 +766,34 @@ function Pill({ family, value, open, onOpen, onPick }: {
   )
 }
 
-// One item, large, with the engine's current context beside it.
-function ReviewCard({ t, pos, total, folder, links, pills, onKeep, onDelete, onSkip, onBack }: {
-  t: TaskRow; pos: number; total: number; folder: string
+// One item, large, with the engine's current context beside it. On a phone
+// it fills the screen: swipe right keeps, left deletes, and the three big
+// buttons sit at the bottom where the thumb is.
+function ReviewCard({ t, phone, pos, total, folder, links, quick, pills, onKeep, onDelete, onSkip, onBack }: {
+  t: TaskRow; phone: boolean; pos: number; total: number; folder: string
   links: { id: string; label: string; url: string }[]
+  quick: ReactNode
   pills: ReactNode
   onKeep: () => void; onDelete: () => void; onSkip: () => void; onBack: () => void
 }) {
   const where = resolvePlace()
   const energy = readCheckin()?.energy ?? 'not checked in'
+  const swipe = useSwipe(onDelete, onKeep)
   return (
-    <article className="ib-review" aria-label={`Reviewing ${pos} of ${total}`}>
+    <article
+      className={'ib-review' + (swipe.dir ? ' swipe-' + swipe.dir : '')}
+      aria-label={`Reviewing ${pos} of ${total}`}
+      style={phone ? swipe.style : undefined}
+      {...(phone ? swipe.handlers : {})}
+    >
       <div className="ib-rv-meta">
-        <span>{pos} / {total} · {folder}</span>
+        <span>
+          {phone && <button type="button" className="ib-rv-back" onClick={onBack} aria-label="Back to the previous item">‹ Back</button>}
+          {pos} / {total} · {folder}
+        </span>
         <span>Right now: {where.src === 'none' ? 'place unknown' : where.label} · energy {energy}</span>
       </div>
+      {phone && swipe.dir && <div className="ib-swipe-hint" aria-hidden="true">{swipe.dir === 'right' || swipe.dir === 'r' ? 'Keep →' : '← Delete'}</div>}
       <h3 className="ib-rv-title">{t.title}</h3>
       {t.tags.includes(STALE_TAG) && <span className="ib-stale">Kept, then untouched for {STALE_DAYS}+ days — still worth it?</span>}
       {links.length > 0 && (
@@ -602,14 +801,23 @@ function ReviewCard({ t, pos, total, folder, links, pills, onKeep, onDelete, onS
           {links.map((r) => <a key={r.id} className="ns-link" href={r.url} target="_blank" rel="noreferrer">{linkLabel(r.label, r.url)}</a>)}
         </div>
       )}
+      {quick}
       <div className="ib-pills">{pills}</div>
       <p className="ns-note ib-keys">Keys: <kbd>1</kbd> quick · <kbd>2</kbd> medium · <kbd>3</kbd> deep effort · <kbd>u</kbd> undo · <kbd>Esc</kbd> list</p>
-      <div className="ib-rv-actions">
-        <button type="button" className="ns-chip" onClick={onBack}>Back <kbd>←</kbd></button>
-        <button type="button" className="ns-chip ib-del" onClick={onDelete}>Delete <kbd>d</kbd></button>
-        <button type="button" className="ns-chip" onClick={onSkip}>Skip <kbd>s</kbd></button>
-        <button type="button" className="ns-chip on" onClick={onKeep}>Keep <kbd>k</kbd></button>
-      </div>
+      {phone ? (
+        <div className="ib-rv-actions ib-rv-thumb">
+          <button type="button" className="ns-chip ib-del" onClick={onDelete}>Delete</button>
+          <button type="button" className="ns-chip" onClick={onSkip}>Skip</button>
+          <button type="button" className="ns-chip on" onClick={onKeep}>Keep</button>
+        </div>
+      ) : (
+        <div className="ib-rv-actions">
+          <button type="button" className="ns-chip" onClick={onBack}>Back <kbd>←</kbd></button>
+          <button type="button" className="ns-chip ib-del" onClick={onDelete}>Delete <kbd>d</kbd></button>
+          <button type="button" className="ns-chip" onClick={onSkip}>Skip <kbd>s</kbd></button>
+          <button type="button" className="ns-chip on" onClick={onKeep}>Keep <kbd>k</kbd></button>
+        </div>
+      )}
     </article>
   )
 }
