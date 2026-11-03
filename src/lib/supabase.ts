@@ -24,3 +24,11 @@ export const supabase = createClient(url, anonKey, {
   },
   global: { headers: { 'x-akatsuki-app': 'rm' } },
 })
+
+// Akatsuki broadcast overlay: load the hub script once, start it with this client.
+if (typeof document !== 'undefined') {
+  const s = document.createElement('script')
+  s.src = 'https://celeritas7.github.io/Akatsuki/js/akatsuki-broadcast.js'
+  s.onload = () => (window as any).AkatsukiBroadcast?.(supabase, 'rm').start()
+  document.head.appendChild(s)
+}
