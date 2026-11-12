@@ -4,6 +4,7 @@
 //   · ticking a mirror publishes task.done; `done` flips here only on WF's reply
 //   · mirrors pair through akatsuki_links (task_links dropped in 0006)
 // bootHub() runs once: signed in AND the store has loaded (App.tsx).
+import { startTaskBroadcasts } from './taskReminders.ts'
 import { supabase } from './supabase.ts'
 import { dayKey } from './dailyReset.ts'
 import { PROJECT_BY_ID, applyVocabContexts } from '../seed.ts'
@@ -362,6 +363,7 @@ export function bootHub(s: Store): Promise<void> {
     suggester.attach(s)
     s.setState({ hubState: 'live', hubRev: get().hubRev + 1, pendingDone: Object.keys(readPending()) })
     banner.start()
+    startTaskBroadcasts()
     asLeader(() => {
       suggester.start(hub!, banner)   // before hub.start(): the first consume may deliver an answer at once
       hub!.start()

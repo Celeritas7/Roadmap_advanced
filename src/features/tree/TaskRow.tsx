@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useStore } from '../../store/useStore.ts'
 import type { TaskRow as TaskRowType } from '../../types.ts'
 import { PROJECT_BY_ID, CONTEXT_BY_ID } from '../../seed.ts'
+import { openTaskReminder } from '../../lib/taskReminders.ts'
 import { MIRROR_TAG } from '../../lib/rmHub.ts'
 
 type Props = {
@@ -17,6 +18,7 @@ export function TaskRow({ task, dim }: Props) {
   const deleteTask = useStore((s) => s.deleteTask)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [reminderError,setReminderError]=useState('')
 
   // Same draft/commit shape as AddTaskRow. Never write a blank title to an
   // existing row: empty/whitespace-only Enter (and Escape/blur) revert to the
@@ -110,6 +112,8 @@ export function TaskRow({ task, dim }: Props) {
         <span className="tags">
           {task.tags.map((tagId) => <Tag key={tagId} tagId={tagId} />)}
         </span>
+        <button type="button" aria-label={`Reminder schedule and status for ${task.title}`} style={{padding:'6px 10px',minHeight:36,border:'1px solid currentColor',borderRadius:8,background:'transparent',color:'inherit',cursor:'pointer'}} onClick={(e)=>{e.stopPropagation();setReminderError('');void openTaskReminder(task).catch((error:Error)=>setReminderError(error.message))}}>Reminder</button>
+        {reminderError && <span role="status">{reminderError}</span>}
         {/* Touch rename trigger — visible only on mobile (CSS); desktop renames
             via double-click on the title. Same startEdit path either way. */}
         <button
