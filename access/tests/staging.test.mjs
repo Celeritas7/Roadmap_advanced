@@ -8,7 +8,7 @@ import {prepareStaging} from '../prepare-staging.mjs';
 test('isolated staging pins inputs and preserves original app files and authentication storage',async()=>{
  const root=fileURLToPath(new URL('../../',import.meta.url)),temp=await mkdtemp(join(tmpdir(),'roadmap-stage-'));
  try {
-  for(const file of ['src','public','index.html','package.json','package-lock.json','tsconfig.json','vite.config.ts','tailwind.config.ts','postcss.config.js'])
+  for(const file of ['src','public','supabase','index.html','package.json','package-lock.json','tsconfig.json','vite.config.ts','tailwind.config.ts','postcss.config.js'])
    await cp(join(root,file),join(temp,file),{recursive:true});
   const original=await readFile(join(temp,'src/store/useStore.ts'),'utf8');
   const stage=await prepareStaging(temp);
