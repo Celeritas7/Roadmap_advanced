@@ -15,6 +15,9 @@ test('isolated staging pins inputs and preserves original app files and authenti
   assert.equal(await readFile(join(temp,'src/store/useStore.ts'),'utf8'),original);
   const store=await readFile(join(stage,'src/store/useStore.ts'),'utf8');assert.match(store,/await sessionSync.setDailyTask/);
   assert.match(store,/import \{ runDailyReset \}/);assert.doesNotMatch(store,/optimistic state already unchecked/);
+  assert.match(store,/await editTaskMetadata/);assert.match(store,/runLegacyTaskMutation/);
+  const taskRow=await readFile(join(stage,'src/features/tree/TaskRow.tsx'),'utf8');
+  assert.match(taskRow,/await updateTask/);assert.doesNotMatch(taskRow,/onBlur=\{cancelEdit\}/);
   assert.match(store,/setInterval\(\(\) => void runDailyReset\(\), 60_000\)/);
   const auth=await readFile(join(stage,'src/lib/supabase.ts'),'utf8');
   assert.match(auth,/127\.0\.0\.1:54321/);assert.match(auth,/rm_session_fixture_auth/);assert.doesNotMatch(auth,/import\.meta\.env\.VITE_SUPABASE|AkatsukiBroadcast/);

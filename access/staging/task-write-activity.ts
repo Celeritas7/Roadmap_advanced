@@ -9,3 +9,15 @@ export async function trackTaskWrite<T>(id:string,write:()=>Promise<T>):Promise<
  active.set(id,(active.get(id)??0)+1);versions.set(id,taskWriteVersion(id)+1)
  try{return await write()}finally{active.set(id,(active.get(id)??1)-1);versions.set(id,taskWriteVersion(id)+1)}
 }
+
+let editGuard:(ids?:string[])=>void=()=>{},legacyActive=0
+export const setTaskEditGuard=(guard:(ids?:string[])=>void)=>{editGuard=guard}
+export const assertNoPendingTaskEdit=(ids?:string[])=>editGuard(ids)
+export function taskEditPending(id:string){try{editGuard([id]);return false}catch{return true}}
+export const ordinaryTasksBusy=()=>legacyActive>0||[...active.values()].some(n=>n>0)
+// Existing structural paths still use whole-tree rollback. Keep metadata writes
+// out of their lifetime, including error recovery reads, until that later work.
+export async function runLegacyTaskMutation<T>(write:()=>Promise<T>):Promise<T>{
+ editGuard();legacyActive++
+ try{return await write()}finally{legacyActive--}
+}
