@@ -21,7 +21,7 @@ export async function prepareStaging(sourceRoot=root) {
  await mkdir(stage,{recursive:true});
  for(const file of ['src','public','index.html','package.json','package-lock.json','tsconfig.json','vite.config.ts','tailwind.config.ts','postcss.config.js'])
   await cp(join(sourceRoot,file),join(stage,file),{recursive:true});
- for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts','task-edit-contract.ts','task-edit-sync.ts','TaskEditRecovery.tsx'])
+ for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts','task-edit-contract.ts','task-edit-sync.ts','TaskEditRecovery.tsx','daily-log-contract.ts','daily-log-sync.ts','DailyLogRecovery.tsx','DailyLogForm.tsx'])
   await cp(new URL('./staging/'+file,import.meta.url),join(stage,'src/store',file));
  let ordinary=original['src/store/sync.ts'];
  ordinary="import { trackTaskWrite } from './task-write-activity.ts'\n"+ordinary
@@ -95,11 +95,23 @@ ${hook}`);
   store=store.slice(0,open)+prefix+'\n    '+(name==='toggleTask'?'try { await':'return')+' runLegacyTaskMutation(async()=>{'+body+'\n    })'+
    (name==='toggleTask'?' } catch(e) { set({error:errorMessage(e)}) }':'')+store.slice(end);
  }
+
+ store="import { saveDailyLog,runLegacyLogDelete } from './daily-log-sync.ts'\n"+store;
+ const addLogStart=store.indexOf('  addLog: async'),addLogEnd=store.indexOf('\n  },',addLogStart);
+ if(addLogStart<0||addLogEnd<0)throw Error('Log action changed');
+ store=store.slice(0,addLogStart)+`  addLog: async (entry) => {
+    try { await saveDailyLog(entry) }
+    catch(e) { set({error:errorMessage(e)}); throw e }
+`+store.slice(addLogEnd);
+ const deleteStart=store.indexOf('  deleteLog: async'),deleteOpen=store.indexOf(' => {',deleteStart)+5,deleteEnd=store.indexOf('\n  },',deleteOpen);
+ if(deleteStart<0||deleteOpen<5||deleteEnd<0)throw Error('Log delete changed');
+ store=store.slice(0,deleteOpen)+'\n    try { return await runLegacyLogDelete(async()=>{'+store.slice(deleteOpen,deleteEnd)+
+  '\n    }) } catch(e) { set({error:errorMessage(e)}); throw e }'+store.slice(deleteEnd);
  await writeFile(join(stage,'src/store/useStore.ts'),store);
  let app=original['src/App.tsx'].replace("import { bootHub } from './lib/rmHub.ts'\n",'');
- app="import { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
+ app="import { DailyLogRecovery } from './store/DailyLogRecovery.tsx'\nimport { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
   .replace("    if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)","    // Hub consumption stays off in this isolated fixture preview.")
-  .replace('<Header />','<Header /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
+  .replace('<Header />','<Header /><DailyLogRecovery /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
   .replace("Couldn't save that change — it's been undone.",'{error}');
  await writeFile(join(stage,'src/App.tsx'),app);
 
@@ -134,6 +146,13 @@ ${hook}`);
  await writeFile(join(stage,'src/features/tree/TaskRow.tsx'),row);
  const group=original['src/features/tree/Group.tsx'].replace('void toggleGroup(node.id)','void toggleGroup(node.id).catch(()=>{})');
  await writeFile(join(stage,'src/features/tree/Group.tsx'),group);
+
+ let log=original['src/features/log/TodaysLog.tsx'].replace("import { useMemo, useState } from 'react'","import { useMemo } from 'react'")
+  .replace("import { CONTEXTS } from '../../seed.ts'", "import { DailyLogForm } from '../../store/DailyLogForm.tsx'");
+ const logStart=log.indexOf('// Quick-log draft:'),logEnd=log.indexOf('\nfunction resolveTitle',logStart);
+ if(logStart<0||logEnd<0)throw Error('Daily log form changed');
+ log=log.slice(0,logStart)+`function AddLogRow({today}:{today:string}) { return <DailyLogForm today={today}/> }\n`+log.slice(logEnd);
+ await writeFile(join(stage,'src/features/log/TodaysLog.tsx'),log);
  let compare=original['src/features/compare/CompareSheet.tsx']
   .replace("import { useMemo } from 'react'","import { useMemo, useEffect, useState } from 'react'\nimport { comparisonEdits,comparisonImports } from '../../store/compareSync.ts'\nimport { ComparisonImport } from '../../store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from '../../store/ComparisonRecovery.tsx'")
   .replace('  if (!c) return null\n\n  const used',`  const [,setRevision]=useState(0)

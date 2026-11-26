@@ -195,3 +195,57 @@ structural edits, followed by hub/caller/account-state acceptance. Source runtim
 Pages deployment, personal auth/storage and Commonplace offline packs remain
 unchanged. G0 is still open; hosted changes and enrollment remain on hold, and
 restoration remains deferred.
+
+## Daily-log entry recovery (candidate 14)
+
+Commonplace #126 and Roadmap #22 are merged. This isolated work group replaces
+only the copied `TodaysLog` form and copied store action with acknowledged
+`ga_roadmap_add_log(p_entry_id, p_entry, p_request_id)` after candidates
+**01/03/09/14**. Root runtime, personal auth/storage, hub and deployment stay intact.
+
+The form keeps draft text when focus leaves it, validates whole-minute durations
+without truncation, freezes its original calendar date on opening and awaits
+confirmation. Close keeps the in-page draft; it does not discard a saved retry.
+Unsubmitted drafts are in-page only. A valid Save attempt persists its exact
+account, entry/request UUIDs, date, optional task, context, duration and notes
+before transmission. Storage refusal sends nothing. Only one unresolved log per
+account is retained; different data cannot silently replace it.
+
+**Daily log recovery** shows the saved date and notes with Retry, Discard and
+Reload. An uncertain response/reload uses the same IDs and original date, even
+after midnight. The server returns the current owned log on replay, preserving
+later notes and an optional task link cleared by deletion. A deleted/foreign log
+is not recreated. Entry and private creation receipt commit together or neither
+does. The receipt is not a history of later legacy edits or a restore API.
+
+A successful form or panel retry clears the associated form, preventing a second
+submission of that failed draft. Earlier-day confirmation displays its date and
+notes even though the existing list remains today-only. First acknowledgements
+must match the request; missing/invalid/foreign responses keep the retry. Account
+generations and cross-tab storage checks reject stale cleanup. Existing safe
+reload on account change is retained; no browser data is cleared.
+
+Local merging deduplicates by entry UUID and keeps unrelated logs, tasks and
+study sessions. A target changed during confirmation is retained for review.
+New log creation waits out the entire legacy delete/rollback lifetime, and
+pending entries block new deletion. This prevents an old list rollback from
+hiding a new entry; deletion's own version/history work remains separate.
+Discard never undoes a server insert and requires reload before another entry.
+
+Limits: integer minutes 1–1440, explicit ISO calendar date, context at most 128
+UTF-8 bytes, notes at most 16 KiB, saved client envelope at most 24 KiB (server
+JSON at most 32 KiB). No owner/timestamp or unknown field input. Plain text only.
+The server requires a verified non-anonymous caller and current owned task for
+linked entries. It is not an app-admission allowlist; verified users may create
+their own general entries. Broader admission acceptance remains a G0 gate.
+
+Unit checks cover original-date/identity persistence, quotas, conflicts, invalid
+acknowledgements, account changes and cross-tab work. Browser checks drive the
+actual form/store/panel through blur, midnight, failure, reload, retry, duplicate
+prevention, older delete rollback and concurrent edits. Commonplace's disposable
+Supabase CI checks JWT ownership, contention, history rollback and revocation.
+See [daily-log readiness](https://github.com/Celeritas7/Commonplace/blob/main/platform/acceptance/ROADMAP-LOG-READINESS.md).
+
+Next: task creation/capture recovery, then structural mutations/deletion and
+hub/caller/account-state acceptance. G0 stays open; hosted work and enrollment
+stay on hold. Deferred restoration and original offline packs remain untouched.
