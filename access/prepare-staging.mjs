@@ -21,7 +21,7 @@ export async function prepareStaging(sourceRoot=root) {
  await mkdir(stage,{recursive:true});
  for(const file of ['src','public','index.html','package.json','package-lock.json','tsconfig.json','vite.config.ts','tailwind.config.ts','postcss.config.js'])
   await cp(join(sourceRoot,file),join(stage,file),{recursive:true});
- for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx'])
+ for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx'])
   await cp(new URL('./staging/'+file,import.meta.url),join(stage,'src/store',file));
  let store=original['src/store/useStore.ts'];
  const hook='    const done = !target.done';
@@ -38,13 +38,47 @@ export async function prepareStaging(sourceRoot=root) {
       return
     }
 ${hook}`);
+ store="import { applyComparisonResult } from './ComparisonRecovery.tsx'\n"+store;
+ const compareStart=store.indexOf('  setCompareWeights: async');
+ const compareEnd=store.indexOf('  sessions: [],',compareStart);
+ if(compareStart<0||compareEnd<0)throw Error('Comparison actions changed');
+ store=store.slice(0,compareStart)+`  setCompareWeights: async (id, weights) => {
+    const comparison=get().comparisons.find(c=>c.id===id)
+    if(!comparison)return
+    try { applyComparisonResult(await compareSync.editComparison(comparison,{weights}));set({error:null}) }
+    catch(e) { set({error:errorMessage(e)}) }
+  },
+  chooseCompareItem: async (id, chosen_item) => {
+    const comparison=get().comparisons.find(c=>c.id===id)
+    if(!comparison)return
+    try { applyComparisonResult(await compareSync.editComparison(comparison,{chosen_item}));set({error:null}) }
+    catch(e) { set({error:errorMessage(e)}) }
+  },
+`+store.slice(compareEnd);
+ store=store.replace('const { comparisons, items } = await compareSync.fetchComparisons()',
+  `const snapshot = await compareSync.fetchComparisons()
+      compareSync.comparisonEdits.assertContext(snapshot.context)
+      const {comparisons,items}=snapshot`);
  await writeFile(join(stage,'src/store/useStore.ts'),store);
  let app=original['src/App.tsx'].replace("import { bootHub } from './lib/rmHub.ts'\n",'');
- app="import { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
+ app="import { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
   .replace("    if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)","    // Hub consumption stays off in this isolated fixture preview.")
-  .replace('<Header />','<Header /><SessionRecovery />')
+  .replace('<Header />','<Header /><SessionRecovery /><ComparisonRecovery />')
   .replace("Couldn't save that change — it's been undone.",'{error}');
  await writeFile(join(stage,'src/App.tsx'),app);
+ let compare=original['src/features/compare/CompareSheet.tsx']
+  .replace("import { useMemo } from 'react'","import { useMemo, useEffect, useState } from 'react'\nimport { comparisonEdits } from '../../store/compareSync.ts'\nimport { ComparisonRecovery } from '../../store/ComparisonRecovery.tsx'")
+  .replace('  if (!c) return null\n\n  const used',`  const [,setRevision]=useState(0)
+  useEffect(()=>comparisonEdits.subscribe(()=>setRevision(x=>x+1)),[])
+  let waiting=true
+  try { waiting=comparisonEdits.busy()||comparisonEdits.list().some(p=>p.comparisonId===openId) } catch {}
+  if (!c) return null
+
+  const used`)
+  .replace('{used.length > 0 && (','<ComparisonRecovery comparisonId={c.id} />\n        {used.length > 0 && (')
+  .replace('<button key={k.id} type="button"','<button key={k.id} disabled={waiting} type="button"')
+  .replace("className={'ns-chip' + (pick ? '' : ' on')} onClick", "disabled={waiting} className={'ns-chip' + (pick ? '' : ' on')} onClick");
+ await writeFile(join(stage,'src/features/compare/CompareSheet.tsx'),compare);
  let launch=original['src/features/plan/launch.ts']
   .replace('function withHandshake(rawUrl: string, taskId: string): string {','function withHandshake(rawUrl: string, taskId: string, logicalDay: string): string {')
   .replace('u.searchParams.set(RM_DAY_PARAM, dayKey())','u.searchParams.set(RM_DAY_PARAM, logicalDay)')

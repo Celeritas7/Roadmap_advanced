@@ -1,11 +1,13 @@
 {
-  "commit": "8eda969197df3ba770ca4bad538d947984acaa55",
+  "commit": "93162665222b83ab03c840efd10303508f90db47",
   "sha256": {
     "index.html": "548e5bff519262ec75bc84fd03a4eb903a125fa43ba330da81808a685685aa9c",
     "src/App.tsx": "1821ed8bb8b85e6ab41b7dd593193a7aa824687abc51b619d54e65838e65e0a2",
     "src/store/useStore.ts": "82e1fa1f06f30c193022d2ae2347f499a34032de330b214894407bb4d859c587",
     "src/store/studySessions.ts": "87e09fca6591badb99238a057690364e8e4c889391c95a5242170857851a72b5",
     "src/features/plan/launch.ts": "c16c29b7f44d559253d1998ce0dac08594cdca59fa03a6c00bddae7222bc18dd",
-    "src/lib/supabase.ts": "e6085e7602b67eaf89aba856089fb420141ab940a11df120d9706e519c6e3bf3"
+    "src/lib/supabase.ts": "e6085e7602b67eaf89aba856089fb420141ab940a11df120d9706e519c6e3bf3",
+    "src/store/compareSync.ts": "0215161a7565d4be2b5f330d97c8bed48ae6d52643238a59e711c1bab5b8e2d7",
+    "src/features/compare/CompareSheet.tsx": "fe9dab3ff0626b1618fca4ffe273cd952d7f83b357c33ccb8de145bbb94e6162"
   }
 }

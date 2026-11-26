@@ -1,7 +1,7 @@
-# Roadmap session access preparation
+# Roadmap session and comparison access preparation
 
 This is an opt-in **synthetic staging preview**, coordinated with Commonplace G0
-candidate 08. It does not install SQL, deploy the app, enroll learners or resume
+candidates 08/10. It does not install SQL, deploy the app, enroll learners or resume
 the deferred restoration work. Root `src/`, public assets, existing auth storage,
 local preferences and saved study data are unchanged.
 
@@ -19,6 +19,20 @@ and a saved retry. The launch handshake and pending request use the same day.
 An account switch hides the old app view and asks for a safe reload. No website
 data is cleared; each account's pending actions stay available to that account.
 Other editors and the hub keep their separate rollout/acceptance requirements.
+
+The comparison preview adds acknowledged weights/picks, version-checked saves,
+and durable account-owned retries. The actual dialog exposes retry, refresh and
+explicit discard controls. Conflicting changes stay saved for review; no newer
+server version is silently adopted for retry. A failed save does not roll back
+the entire comparisons array, and late refreshes cannot overwrite a newer save.
+One owner-filtered embedded query reads comparisons and items together. Account
+generations reject late responses and preserve the original account's retry.
+
+Commonplace candidate 10 requires 01/03/09. Its comparison edit and private
+before/after receipt commit together; replay rechecks access and returns current
+owned records. The unchanged legacy importer/direct writes retain separate
+replacement/retry and stale-edit requirements. This preview does not certify
+them or create an app-admission allowlist.
 
 With Node 22:
 
@@ -44,9 +58,12 @@ Synthetic tests cover storage failures, stale/account-switched responses, missin
 acknowledgements, duplicate clicks, original-day retries and a browser recovery
 flow through the actual staged store/component. Commonplace's disposable Supabase
 CI verifies the server transaction, ownership, contention and history preservation.
-No live backend or personal record is used by these tests.
+No live backend or personal record is used by these tests. Comparison tests also
+exercise stale edits, malformed acknowledgements, cross-tab saved work and the
+actual dialog/store through failure, retry and a late background refresh.
 
-Before real use, review Commonplace candidates 01 → 03 → 08, original ownership
+Before real use, review Commonplace candidates 01 → 03 → 08 for daily actions and
+01 → 03 → 09 → 10 for comparison editing, original ownership
 and session history, recovery evidence, actual study-app callers and a coordinated
 client cutover. Keep the existing start/complete signatures and original `rm_task`,
 `rm_day`, `rm_ret` handshake. Do not replace keys, clear storage, infer owners or
