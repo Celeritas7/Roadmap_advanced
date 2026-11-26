@@ -304,7 +304,7 @@ other shared-project gates remain separate. G0 remains open.
 
 Commonplace #131 and Roadmap #24 are merged. The builder pins the Roadmap
 `35f9cb51eaa3cab32789e5ae59cf380294ff8b91` source and changes only its ignored
-loopback copy. Commonplace candidate **16**, after **01/03/09/15**, adds
+loopback copy. Commonplace candidate **16**, after **01/03/08/09/15**, adds
 `ga_roadmap_structure(p_payload, p_request_id)`. This is G0 preparation, not a
 hosted rollout or a new Commonplace migration.
 
@@ -333,7 +333,8 @@ another intent. These client guards do not replace server authorization.
 The server retains sessions, daily logs, comparisons and suggestions under the
 same owner with null optional task links. Feedback/proof and notes survive.
 Task resources leave the active view but their exact original rows remain in
-private deletion history with task snapshots. No restore API or post-commit Undo
+private deletion history with task snapshots and the candidate 08 daily-action
+receipts that otherwise cascade. Candidate 08 is an explicit prerequisite. No restore API or post-commit Undo
 is provided. Replays never delete again or recreate a removed task. Mirrors,
 foreign/non-group parents, cycles, stale versions and incomplete subtrees fail
 atomically. Existing direct writers still need coordinated cutover.
