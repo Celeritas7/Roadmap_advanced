@@ -78,6 +78,7 @@ test('count and UTF-8 limits reject before persisting; title and tag boundaries 
  for(const n of [0,33])assert.throws(()=>s.creates.prepare({kind:'capture',text:'test',items:Array.from({length:n},()=>({...item,tags:['parked'],folder:'Other'}))}));
  assert.throws(()=>s.creates.prepare({kind:'capture',text:'x'.repeat(32769),items:[{...item,tags:['parked'],folder:'Other'}]}));
  assert.throws(()=>s.creates.prepare({kind:'capture',text:'test',items:Array.from({length:32},()=>({title:'x'.repeat(4096),tags:['parked'],folder:'Other'}))}),/too large/);
+ const full=setup({rpc:async()=>{throw Error('must not send')}}).creates.prepare({kind:'capture',text:'test',items:Array.from({length:32},(_,n)=>({title:'Item '+n,tags:['parked'],folder:'Other'}))});assert.equal(full.payload.items.length,32);
  assert.deepEqual(s.creates.list(),[]);const boundary=s.creates.prepare({...draft,items:[{title:'x'.repeat(4096),tags:['x'.repeat(80)]}]});assert.equal(boundary.payload.items[0].title.length,4096);
  assert.deepEqual(creationDraft(boundary.payload),normalizeCreation({...draft,items:[{title:'x'.repeat(4096),tags:['x'.repeat(80)]}]}));
 });
