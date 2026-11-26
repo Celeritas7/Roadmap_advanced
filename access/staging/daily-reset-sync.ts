@@ -3,7 +3,7 @@ import {dayKey} from '../lib/dailyReset.ts'
 import {useStore} from './useStore.ts'
 import {sessionActions} from './studySessions.ts'
 import {createDailyResets,type ResetIntent} from './daily-reset-contract.ts'
-import {taskWriting,taskWriteVersion,setDailyResetGuard} from './task-write-activity.ts'
+import {taskWriting,taskWriteVersion,setDailyResetGuard,assertNoPendingTaskEdit,taskEditPending} from './task-write-activity.ts'
 import type {TaskRow} from '../types.ts'
 export const dailyResets=createDailyResets({client:supabase,storage:localStorage,requestId:()=>crypto.randomUUID()})
 let locked=false,seen=false,previous:string|null=null,message='',automaticPaused=false,ticking:Promise<void>|null=null
@@ -21,6 +21,7 @@ function unlocked(){if(locked)throw Error('Reload safely to continue with the cu
 export async function retryDailyReset(p:ResetIntent){
  unlocked();const actor=dailyResets.context();dailyResets.assertContext(actor)
  const ids=p.tasks.map(t=>t.id)
+ assertNoPendingTaskEdit(ids)
  if(taskWriting(ids))throw Error('Wait for the current task edit to finish.')
  if(sessionActions.list().some(s=>s.kind==='daily'&&ids.includes(s.taskId)))throw Error('Resolve the saved daily action before resetting these tasks.')
  const before=new Map(useStore.getState().tree.filter(t=>ids.includes(t.id)).map(t=>[t.id,{json:JSON.stringify(t),version:taskWriteVersion(t.id)}]))
@@ -46,7 +47,7 @@ export function runDailyReset():Promise<void>{
    unlocked();const actor=dailyResets.context();if(!actor.owner||automaticPaused||dailyResets.busy()||dailyResets.list().length)return
    const pending=new Set(sessionActions.list().filter(p=>p.kind==='daily').map(p=>p.taskId)),today=dayKey()
    const stale=useStore.getState().tree.filter(t=>t.kind==='task'&&Array.isArray(t.tags)&&t.tags.includes('daily-routine')&&t.done===true&&
-    Number.isFinite(Date.parse(t.updated_at))&&dayKey(new Date(t.updated_at))<today&&!pending.has(t.id)&&!taskWriting([t.id]))
+    Number.isFinite(Date.parse(t.updated_at))&&dayKey(new Date(t.updated_at))<today&&!pending.has(t.id)&&!taskWriting([t.id])&&!taskEditPending(t.id))
     .sort((a,b)=>a.id.localeCompare(b.id)).slice(0,100)
    if(!stale.length)return
    const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone

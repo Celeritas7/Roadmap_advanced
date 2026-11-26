@@ -148,3 +148,50 @@ streak/session data and a concurrent title edit. Commonplace CI verifies real JW
 concurrency, rollback and pause/revocation. Hosted/device acceptance and deferred
 restoration remain separate. See
 [reset readiness](https://github.com/Celeritas7/Commonplace/blob/main/platform/acceptance/ROADMAP-RESET-READINESS.md).
+
+## Task metadata recovery (candidate 13)
+
+Commonplace #124 and Roadmap #21 are merged. The next isolated work group routes
+**task names, tags and group expansion** through
+`ga_roadmap_edit_tasks(p_tasks, p_request_id)` after candidates 01/03/13. Every
+explicit task includes its original timestamp and a metadata-only patch. A batch
+commits once with private before/after history, or entirely fails. Replay checks
+current access and returns current state. Mirrored Weekly Focus title/tag changes
+stay with that owner. Structural/mixed patches never silently fall back from a
+failed metadata save to a direct table write.
+
+The actual staging rename field keeps unsent text on blur and failed Save. A
+confirmed Save closes it; an attempted save persists the exact request under its
+original account. **Task edit recovery** exposes proposed patches as text, Retry,
+explicit Discard and Reload. Unsent text is only an in-page draft. A storage error
+sends nothing. Invalid acknowledgements, version conflicts, lost responses and
+account changes retain the request. Duplicate attempts share a request, and a
+newer tab's saved request is not removed by an old result. One pending metadata
+batch per account must be resolved before a different batch. Discard is not a
+server undo and requires reload before a new metadata edit.
+
+The UI applies only confirmed target rows and retains unrelated edits and the
+session ledger. A target changed during the request is kept for review. Pending
+metadata, daily actions and resets are resolved in order. Old structural mutations
+are serialized against metadata through their recovery/rollback lifetime, so an
+old entire-tree rollback cannot replace a new metadata save. Their own failure
+behavior still needs the later structural-mutation work group.
+
+Limits: 1–100 distinct tasks, a 48 KiB UTF-8 saved request (64 KiB canonical server
+JSON), 4,096-byte nonblank titles, 32 distinct nonblank tags of at most 80 bytes,
+and boolean expansion. No owner, hierarchy, streak, completion or date patches.
+No imported script/HTML execution and no new privileged frontend credential.
+
+Unit checks cover requests, acknowledgements, failure/storage/account/conflict
+recovery. The added browser check exercises the actual task row, store and panel
+through blur, failure, reload, retry, bulk tags and overlapping edits. The reset
+regression retains its overlapping ordinary-writer check and verifies the new
+metadata guard. Real JWT/concurrency/history tests live in Commonplace's isolated
+Supabase CI. Type check/build and source pins cover the integrated staging copy.
+
+[Task edit readiness](https://github.com/Celeritas7/Commonplace/blob/main/platform/acceptance/ROADMAP-TASK-EDIT-READINESS.md)
+records boundaries. Next: daily-log entry recovery, then creation/capture and
+structural edits, followed by hub/caller/account-state acceptance. Source runtime,
+Pages deployment, personal auth/storage and Commonplace offline packs remain
+unchanged. G0 is still open; hosted changes and enrollment remain on hold, and
+restoration remains deferred.

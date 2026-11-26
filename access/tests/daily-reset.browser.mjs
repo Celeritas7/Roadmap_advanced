@@ -8,6 +8,7 @@ test('daily reset keeps failed checkboxes and history, retries once, and preserv
  import React from 'react';import {createRoot} from 'react-dom/client';
  import {useStore} from '/src/store/useStore.ts';import {DailyResetRecovery} from '/src/store/DailyResetRecovery.tsx';
  import {dailyResets,runDailyReset} from '/src/store/daily-reset-sync.ts';import {sessionActions} from '/src/store/studySessions.ts';
+ import {updateTask as ordinaryUpdate} from '/src/store/sync.ts';
  import {supabase} from '/src/lib/supabase.ts';await supabase.auth.getSession();
  const id=n=>'c0000000-0000-4000-8000-'+String(n).padStart(12,'0');
  dailyResets.bind(id(1));sessionActions.bind(id(1));
@@ -23,7 +24,8 @@ test('daily reset keeps failed checkboxes and history, retries once, and preserv
   return success(args);
  };
  supabase.from=()=>({update(patch){this.patch=patch;return this},eq(){return this},select(){return this},single(){return new Promise(resolve=>window.finishEdit=()=>{window.row={...window.row,...this.patch,updated_at:new Date().toISOString()};resolve({data:window.row,error:null})})}});
- window.editSelected=()=>{window.edit=useStore.getState().updateTask(id(3),{title:'Newer title edit'})};
+ window.tryMetadata=()=>useStore.getState().updateTask(id(3),{title:'Blocked while resetting'}).then(()=>'',e=>e.message);
+ window.editSelected=()=>{useStore.setState(s=>({tree:s.tree.map(t=>t.id===id(3)?{...t,title:'Newer title edit'}:t)}));window.edit=ordinaryUpdate(id(3),{title:'Newer title edit'}).then(row=>useStore.setState(s=>({tree:s.tree.map(t=>t.id===row.id?row:t)})))};
  window.editOther=()=>useStore.setState(s=>({tree:s.tree.map(t=>t.id===id(4)?{...t,title:'Keep unrelated edit'}:t)}));
  function Scene(){const row=useStore(s=>s.tree[0]);return React.createElement('div',{},React.createElement('label',{},'Daily task',React.createElement('input',{type:'checkbox',checked:row.done,onChange:()=>void useStore.getState().toggleTask(row.id)})),React.createElement(DailyResetRecovery))}
  createRoot(document.getElementById('root')).render(React.createElement(Scene));window.ready=true;
@@ -47,6 +49,7 @@ test('daily reset keeps failed checkboxes and history, retries once, and preserv
   assert.equal(await page.evaluate(()=>window.state().tree[1].title),'Keep unrelated edit');assert.equal(await page.evaluate(()=>window.state().tree[0].streak),4);
   assert.deepEqual(await page.evaluate(()=>window.state().sessions),history);
   await page.evaluate(()=>{window.seed();window.mode='hold';window.resetRun=window.tick()});await page.waitForFunction(()=>typeof window.finishReset==='function');
+  assert.match(await page.evaluate(()=>window.tryMetadata()),/saved daily reset/);
   await page.evaluate(()=>window.editSelected());await page.waitForFunction(()=>typeof window.finishEdit==='function');
   await page.evaluate(async()=>{window.finishReset();await window.resetRun});
   assert.equal(await page.evaluate(()=>window.state().tree[0].title),'Newer title edit');assert.equal(await page.evaluate(()=>window.pending().length),1);

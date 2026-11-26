@@ -21,7 +21,7 @@ export async function prepareStaging(sourceRoot=root) {
  await mkdir(stage,{recursive:true});
  for(const file of ['src','public','index.html','package.json','package-lock.json','tsconfig.json','vite.config.ts','tailwind.config.ts','postcss.config.js'])
   await cp(join(sourceRoot,file),join(stage,file),{recursive:true});
- for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts'])
+ for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts','task-edit-contract.ts','task-edit-sync.ts','TaskEditRecovery.tsx'])
   await cp(new URL('./staging/'+file,import.meta.url),join(stage,'src/store',file));
  let ordinary=original['src/store/sync.ts'];
  ordinary="import { trackTaskWrite } from './task-write-activity.ts'\n"+ordinary
@@ -68,13 +68,72 @@ ${hook}`);
   `const snapshot = await compareSync.fetchComparisons()
       compareSync.comparisonEdits.assertContext(snapshot.context)
       const {comparisons,items}=snapshot`);
+
+ store="import { editTaskMetadata,isMetadata,hasMetadata } from './task-edit-sync.ts'\nimport { runLegacyTaskMutation } from './task-write-activity.ts'\n"+store;
+ // Metadata batches get one acknowledged transaction. Legacy structural paths
+ // keep their existing implementation, serialized against pending metadata.
+ for(const name of ['updateTask','updateTasks','deleteTask','deleteTasks','reorderTask','toggleTask']) {
+  const start=store.indexOf('  '+name+': async '),open=store.indexOf(' => {',start)+5,end=store.indexOf('\n  },',open);
+  if(start<0||open<5||end<0)throw Error('Task action changed: '+name);
+  const body=store.slice(open,end);
+  let prefix='';
+  if(name==='updateTask')prefix=`
+    if (isMetadata(patch)) {
+      try { await editTaskMetadata([{id,patch}]); return }
+      catch(e) { set({error:errorMessage(e)}); throw e }
+    }
+    if (hasMetadata(patch)) throw Error('Save metadata separately from task moves or completion changes.')
+`;
+  if(name==='updateTasks')prefix=`
+    if (!patches.length) return
+    if (patches.every(p=>isMetadata(p.patch))) {
+      try { await editTaskMetadata(patches); return }
+      catch(e) { set({error:errorMessage(e)}); throw e }
+    }
+    if (patches.some(p=>hasMetadata(p.patch))) throw Error('Save metadata separately from task moves or completion changes.')
+`;
+  store=store.slice(0,open)+prefix+'\n    '+(name==='toggleTask'?'try { await':'return')+' runLegacyTaskMutation(async()=>{'+body+'\n    })'+
+   (name==='toggleTask'?' } catch(e) { set({error:errorMessage(e)}) }':'')+store.slice(end);
+ }
  await writeFile(join(stage,'src/store/useStore.ts'),store);
  let app=original['src/App.tsx'].replace("import { bootHub } from './lib/rmHub.ts'\n",'');
- app="import { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
+ app="import { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
   .replace("    if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)","    // Hub consumption stays off in this isolated fixture preview.")
-  .replace('<Header />','<Header /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
+  .replace('<Header />','<Header /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
   .replace("Couldn't save that change — it's been undone.",'{error}');
  await writeFile(join(stage,'src/App.tsx'),app);
+
+ let row=original['src/features/tree/TaskRow.tsx'];
+ const begin=row.indexOf('  // Same draft/commit shape'),end=row.indexOf('\n  const {',begin);
+ if(begin<0||end<0)throw Error('Rename source changed');
+ row=row.slice(0,begin)+`  const [saving,setSaving]=useState(false),[editError,setEditError]=useState('')
+  const commitEdit=async()=>{
+    if(saving)return
+    const title=draft.trim()
+    if(!title){setEditError('Enter a task name.');return}
+    if(title===task.title){setEditing(false);return}
+    setSaving(true);setEditError('')
+    try { await updateTask(task.id,{title});setEditing(false) }
+    catch(e) { setEditError(e instanceof Error?e.message:'Save was not confirmed. Your draft stays here.') }
+    finally { setSaving(false) }
+  }
+  const cancelEdit=()=>{if(!saving)setEditing(false)}
+  const startEdit=()=>{
+    if(editing||saving)return
+    setDraft(task.title);setEditError('');setEditing(true)
+  }
+`+row.slice(end);
+ row=row.replace('{editing ? (\n          <input','{editing ? (\n          <span>\n          <input')
+  .replace('            value={draft}', '            aria-label="Task name"\n            disabled={saving}\n            value={draft}')
+  .replace('                commitEdit()','                void commitEdit()')
+  .replace('            onBlur={cancelEdit}\n          />',`          />
+          <button type="button" disabled={saving} onClick={()=>void commitEdit()}>Save task name</button>
+          <button type="button" disabled={saving} onClick={cancelEdit}>Close editor</button>
+          {editError&&<span role="status">{editError}</span>}
+          </span>`);
+ await writeFile(join(stage,'src/features/tree/TaskRow.tsx'),row);
+ const group=original['src/features/tree/Group.tsx'].replace('void toggleGroup(node.id)','void toggleGroup(node.id).catch(()=>{})');
+ await writeFile(join(stage,'src/features/tree/Group.tsx'),group);
  let compare=original['src/features/compare/CompareSheet.tsx']
   .replace("import { useMemo } from 'react'","import { useMemo, useEffect, useState } from 'react'\nimport { comparisonEdits,comparisonImports } from '../../store/compareSync.ts'\nimport { ComparisonImport } from '../../store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from '../../store/ComparisonRecovery.tsx'")
   .replace('  if (!c) return null\n\n  const used',`  const [,setRevision]=useState(0)
