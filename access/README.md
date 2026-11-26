@@ -219,7 +219,9 @@ is not recreated. Entry and private creation receipt commit together or neither
 does. The receipt is not a history of later legacy edits or a restore API.
 
 A successful form or panel retry clears the associated form, preventing a second
-submission of that failed draft. Earlier-day confirmation displays its date and
+submission of that failed draft. Confirmation is matched to the form’s original
+request and payload; another tab’s log cannot clear or replace a different
+in-page draft, including after Close/reopen. Earlier-day confirmation displays its date and
 notes even though the existing list remains today-only. First acknowledgements
 must match the request; missing/invalid/foreign responses keep the retry. Account
 generations and cross-tab storage checks reject stale cleanup. Existing safe

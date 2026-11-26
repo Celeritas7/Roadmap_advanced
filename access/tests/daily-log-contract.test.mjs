@@ -24,7 +24,7 @@ test('duplicate log submissions share one request; altered date, notes or durati
 });
 test('replay returns current notes and an optional task cleared after deletion',async()=>{
  let p;const s=setup({rpc:async()=>{const r=reply(p);r.data.replayed=true;r.data.entry.notes='Newer notes';r.data.entry.task_id=null;return r}});p=s.make();
- const result=await s.logs.run(p);assert.equal(result.entry.notes,'Newer notes');assert.equal(result.entry.task_id,null);s.logs.acknowledge(result);
+ const result=await s.logs.run(p);assert.equal(result.entry.notes,'Newer notes');assert.equal(result.entry.task_id,null);assert.deepEqual(result.submitted,entry);s.logs.acknowledge(result);
 });
 test('account changes reject late response and acknowledgement through A to B to A',async()=>{
  let finish;const s=setup({rpc:()=>new Promise(r=>finish=r)}),p=s.make(),pending=s.logs.run(p);

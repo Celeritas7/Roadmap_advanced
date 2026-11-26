@@ -3,7 +3,7 @@ export type LogEntry={task_id:string|null;log_date:string;context:string|null;du
 export type SavedLog=LogEntry & {id:string;created_at:string}
 export type LogIntent={version:1;owner:string;requestId:string;entryId:string;entry:LogEntry}
 export type LogContext={owner:string|null;epoch:number}
-export type LogResult={context:LogContext;requestId:string;entry:SavedLog}
+export type LogResult={context:LogContext;requestId:string;entry:SavedLog;submitted:LogEntry}
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const isId=(x:unknown):x is string=>typeof x==='string'&&uuid.test(x)
 const object=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==='object'&&!Array.isArray(x)
@@ -72,7 +72,7 @@ export function createDailyLogs({client,storage,uuid:nextId}:{client:RpcClient;s
    const entry=savedLog(data.entry,p.owner)
    if(entry.id!==p.entryId||!data.replayed&&Object.entries(p.entry).some(([k,v])=>entry[k as keyof LogEntry]!==v))throw Error('Daily log was not confirmed.')
    if(storage.getItem(key(p.owner))!==raw)throw Error('A newer saved daily log exists. Review before continuing.')
-   const result:LogResult={context:actor,requestId:p.requestId,entry};receipts.set(result,{intent:p,raw});return result
+   const result:LogResult={context:actor,requestId:p.requestId,entry,submitted:normalizeLog(p.entry)};receipts.set(result,{intent:p,raw});return result
   })()
   running={key:flightKey,promise:work};notify();void work.finally(()=>{if(running?.promise===work)running=null;notify()}).catch(()=>{});return work
  }

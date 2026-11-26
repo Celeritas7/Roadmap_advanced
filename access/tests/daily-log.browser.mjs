@@ -34,6 +34,7 @@ async function fixture(work){
   supabase.from=()=>({delete(){return this},eq(){return new Promise(resolve=>window.failDelete=()=>resolve({error:{message:'Synthetic delete failure'}}))}});
   window.deletion=useStore.getState().deleteLog(old.id).catch(e=>e.message);
  };
+ window.pendingElsewhere=()=>dailyLogs.prepare({task_id:id(3),log_date:'2026-11-25',context:null,duration_minutes:12,notes:'Different tab entry'});
  window.rerender=()=>useStore.setState(s=>({log:[...s.log]}));
  window.addUnrelated=()=>useStore.setState(s=>({log:[...s.log,{...old,id:id(7),notes:'Keep unrelated local notes'}]}));
  window.changeTarget=()=>{const p=dailyLogs.list()[0];useStore.setState(s=>({log:[...s.log.filter(l=>l.id!==p.entryId),{...p.entry,id:p.entryId,created_at:new Date().toISOString(),notes:'Newer local notes'}]}))};
@@ -104,4 +105,15 @@ test('successful recovery clears the failed form; old deletion rollback and over
  assert.equal(await page.evaluate(()=>window.state().log.filter(l=>l.notes==='Newer local notes').length),1);
  assert.ok(await page.evaluate(()=>window.state().log.some(l=>l.notes==='Keep unrelated local notes')));
  assert.equal(await page.evaluate(()=>window.state().tree[0].streak),4);
+ await page.getByRole('button',{name:'+ log something',exact:true}).waitFor();await fill(page,'Keep this separate unsent draft','8');
+ await page.getByRole('button',{name:'Close draft',exact:true}).click();await page.evaluate(()=>window.pendingElsewhere());
+ await page.getByRole('button',{name:'+ log something',exact:true}).click();
+ assert.equal(await page.getByRole('textbox',{name:'Notes',exact:true}).inputValue(),'Keep this separate unsent draft');
+ await page.getByRole('button',{name:'Log',exact:true}).click();await retry.click();await page.waitForFunction(()=>window.pending().length===0);
+ assert.equal(await page.getByRole('textbox',{name:'Notes',exact:true}).inputValue(),'Keep this separate unsent draft');
+ assert.equal(await page.getByRole('textbox',{name:'Notes',exact:true}).isEnabled(),true);
+ await page.getByRole('button',{name:'Log',exact:true}).click();await page.getByRole('button',{name:'+ log something',exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>window.rows.filter(l=>l.notes==='Different tab entry').length),1);
+ assert.equal(await page.evaluate(()=>window.rows.filter(l=>l.notes==='Keep this separate unsent draft').length),1);
+
 }));

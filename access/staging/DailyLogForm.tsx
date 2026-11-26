@@ -2,25 +2,25 @@ import {useEffect,useMemo,useRef,useState} from 'react'
 import {useStore} from './useStore.ts'
 import {CONTEXTS} from '../seed.ts'
 import {dailyLogs,retryDailyLog} from './daily-log-sync.ts'
-import type {LogIntent} from './daily-log-contract.ts'
+import {normalizeLog,type LogIntent} from './daily-log-contract.ts'
 export function DailyLogForm({today}:{today:string}){
  const addLog=useStore(s=>s.addLog),tree=useStore(s=>s.tree)
  const tasks=useMemo(()=>tree.filter(t=>t.kind==='task'),[tree])
  const [draftStarted,setDraftStarted]=useState(false)
  const [open,setOpen]=useState(false),[taskId,setTaskId]=useState(''),[context,setContext]=useState('')
  const [duration,setDuration]=useState(''),[notes,setNotes]=useState(''),[date,setDate]=useState(today)
- const [busy,setBusy]=useState(false),[error,setError]=useState(''),[request,setRequest]=useState<string|null>(null),[revision,setRevision]=useState(0)
+ const [busy,setBusy]=useState(false),[error,setError]=useState(''),[request,setRequest]=useState<{id:string;entry:string}|null>(null),[revision,setRevision]=useState(0)
  const sending=useRef(false)
  useEffect(()=>dailyLogs.subscribe(()=>setRevision(v=>v+1)),[])
  const reset=()=>{setTaskId('');setContext('');setDuration('');setNotes('');setRequest(null);setError('');setOpen(false);setDraftStarted(false)}
- useEffect(()=>{if(request&&dailyLogs.confirmation()?.requestId===request)reset()},[revision,request])
+ useEffect(()=>{const saved=dailyLogs.confirmation();if(request&&saved?.requestId===request.id&&JSON.stringify(saved.submitted)===request.entry)reset()},[revision,request])
  let pending:LogIntent|undefined
  try{pending=dailyLogs.list()[0]}catch{/* Recovery preserves malformed storage for review. */}
- const held=!!pending&&pending.requestId===request
+ const held=!!pending&&pending.requestId===request?.id&&JSON.stringify(pending.entry)===request.entry
  const start=()=>{
   setError('')
-  if(pending){const p=pending.entry;setTaskId(p.task_id??'');setContext(p.context??'');setDuration(String(p.duration_minutes));setNotes(p.notes??'');setDate(p.log_date);setRequest(pending.requestId)}
-  else {if(!draftStarted)setDate(today);setRequest(null)}
+  if(pending&&!draftStarted){const p=pending.entry;setTaskId(p.task_id??'');setContext(p.context??'');setDuration(String(p.duration_minutes));setNotes(p.notes??'');setDate(p.log_date);setRequest({id:pending.requestId,entry:JSON.stringify(pending.entry)})}
+  else if(!draftStarted){setDate(today);setRequest(null)}
   setDraftStarted(true);setOpen(true)
  }
  const commit=async()=>{
@@ -29,8 +29,9 @@ export function DailyLogForm({today}:{today:string}){
   if(!Number.isInteger(mins)||mins<1||mins>1440){setError('Enter a whole-number duration from 1 to 1440 minutes.');return}
   sending.current=true;setBusy(true);setError('')
   try{
-   const work=held?retryDailyLog(pending!):addLog({task_id:taskId||null,context:context||null,duration_minutes:mins,notes:notes.trim()||null,log_date:date})
-   try{const saved=dailyLogs.list()[0];if(saved)setRequest(saved.requestId)}catch{}
+   const entry=normalizeLog({task_id:taskId||null,context:context||null,duration_minutes:mins,notes:notes.trim()||null,log_date:date})
+   const work=held?retryDailyLog(pending!):addLog(entry)
+   try{const saved=dailyLogs.list()[0];if(saved&&JSON.stringify(saved.entry)===JSON.stringify(entry))setRequest({id:saved.requestId,entry:JSON.stringify(saved.entry)})}catch{}
    await work;reset()
   }catch(e){setError(e instanceof Error?e.message:'Log was not confirmed. Your draft stays here.')}
   finally{sending.current=false;setBusy(false)}
