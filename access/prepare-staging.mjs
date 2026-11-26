@@ -21,7 +21,7 @@ export async function prepareStaging(sourceRoot=root) {
  await mkdir(stage,{recursive:true});
  for(const file of ['src','public','index.html','package.json','package-lock.json','tsconfig.json','vite.config.ts','tailwind.config.ts','postcss.config.js'])
   await cp(join(sourceRoot,file),join(stage,file),{recursive:true});
- for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts','task-edit-contract.ts','task-edit-sync.ts','TaskEditRecovery.tsx','daily-log-contract.ts','daily-log-sync.ts','DailyLogRecovery.tsx','DailyLogForm.tsx'])
+ for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts','task-edit-contract.ts','task-edit-sync.ts','TaskEditRecovery.tsx','daily-log-contract.ts','daily-log-sync.ts','DailyLogRecovery.tsx','DailyLogForm.tsx','task-creation-contract.ts','task-creation-sync.ts','TaskCreationForm.tsx','TaskCreationRecovery.tsx'])
   await cp(new URL('./staging/'+file,import.meta.url),join(stage,'src/store',file));
  let ordinary=original['src/store/sync.ts'];
  ordinary="import { trackTaskWrite } from './task-write-activity.ts'\n"+ordinary
@@ -72,7 +72,7 @@ ${hook}`);
  store="import { editTaskMetadata,isMetadata,hasMetadata } from './task-edit-sync.ts'\nimport { runLegacyTaskMutation } from './task-write-activity.ts'\n"+store;
  // Metadata batches get one acknowledged transaction. Legacy structural paths
  // keep their existing implementation, serialized against pending metadata.
- for(const name of ['updateTask','updateTasks','deleteTask','deleteTasks','reorderTask','toggleTask']) {
+ for(const name of ['updateTask','updateTasks','deleteTask','deleteTasks','reorderTask','toggleTask','addFolder']) {
   const start=store.indexOf('  '+name+': async '),open=store.indexOf(' => {',start)+5,end=store.indexOf('\n  },',open);
   if(start<0||open<5||end<0)throw Error('Task action changed: '+name);
   const body=store.slice(open,end);
@@ -107,11 +107,29 @@ ${hook}`);
  if(deleteStart<0||deleteOpen<5||deleteEnd<0)throw Error('Log delete changed');
  store=store.slice(0,deleteOpen)+'\n    try { return await runLegacyLogDelete(async()=>{'+store.slice(deleteOpen,deleteEnd)+
   '\n    }) } catch(e) { set({error:errorMessage(e)}); throw e }'+store.slice(deleteEnd);
+ store="import { saveTaskCreation,taskDraft,captureDraft } from './task-creation-sync.ts'\n"+store;
+ const taskStart=store.indexOf('  addTask: async'),taskEnd=store.indexOf('\n  },',taskStart);
+ if(taskStart<0||taskEnd<0)throw Error('Task creation changed');
+ store=store.slice(0,taskStart)+`  addTask: async (parentId,title,tags=[]) => {
+    const result=await saveTaskCreation(taskDraft(parentId,title,tags))
+    return result.itemIds[0]
+`+store.slice(taskEnd);
+ const captureStart=store.indexOf('  capture: (line)'),captureEnd=store.indexOf('\n  },',captureStart);
+ if(captureStart<0||captureEnd<0)throw Error('Capture action changed');
+ store=store.slice(0,captureStart)+`  capture: async (line) => {
+    const draft=captureDraft(line)
+    if(!draft.items.length)return null
+    const result=await saveTaskCreation(draft)
+    return {id:result.itemIds[0],folder:draft.items[0].folder!}
+`+store.slice(captureEnd);
+ const worker=store.indexOf('// Quick-capture worker');
+ if(worker<0)throw Error('Capture worker changed');
+ store=store.slice(0,worker).replace('  TaskInsert,\n','').replace("import { CAPTURE_ROOT, guessCapture, isNetworkError } from '../lib/capture.ts'\n",'');
  await writeFile(join(stage,'src/store/useStore.ts'),store);
  let app=original['src/App.tsx'].replace("import { bootHub } from './lib/rmHub.ts'\n",'');
- app="import { DailyLogRecovery } from './store/DailyLogRecovery.tsx'\nimport { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
+ app="import { TaskCreationRecovery } from './store/TaskCreationRecovery.tsx'\nimport { DailyLogRecovery } from './store/DailyLogRecovery.tsx'\nimport { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
   .replace("    if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)","    // Hub consumption stays off in this isolated fixture preview.")
-  .replace('<Header />','<Header /><DailyLogRecovery /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
+  .replace('<Header />','<Header /><TaskCreationRecovery /><DailyLogRecovery /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
   .replace("Couldn't save that change — it's been undone.",'{error}');
  await writeFile(join(stage,'src/App.tsx'),app);
 
@@ -144,8 +162,14 @@ ${hook}`);
           {editError&&<span role="status">{editError}</span>}
           </span>`);
  await writeFile(join(stage,'src/features/tree/TaskRow.tsx'),row);
- const group=original['src/features/tree/Group.tsx'].replace('void toggleGroup(node.id)','void toggleGroup(node.id).catch(()=>{})');
+ let group=original['src/features/tree/Group.tsx'].replace('void toggleGroup(node.id)','void toggleGroup(node.id).catch(()=>{})');
+ const addTaskForm=group.indexOf('// Add affordance:');
+ if(addTaskForm<0)throw Error('Task form changed');
+ group="import { TaskCreationForm } from '../../store/TaskCreationForm.tsx'\n"+group.slice(0,addTaskForm)
+  .replace("import { useState, type CSSProperties }", "import { type CSSProperties }")
+  .replace('<AddTaskRow parentId={node.id} />','<TaskCreationForm parentId={node.id} />');
  await writeFile(join(stage,'src/features/tree/Group.tsx'),group);
+ await writeFile(join(stage,'src/features/capture/CaptureSheet.tsx'),"export { CaptureCreationForm as CaptureSheet } from '../../store/TaskCreationForm.tsx'\n");
 
  let log=original['src/features/log/TodaysLog.tsx'].replace("import { useMemo, useState } from 'react'","import { useMemo } from 'react'")
   .replace("import { CONTEXTS } from '../../seed.ts'", "import { DailyLogForm } from '../../store/DailyLogForm.tsx'");

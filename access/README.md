@@ -251,3 +251,51 @@ See [daily-log readiness](https://github.com/Celeritas7/Commonplace/blob/main/pl
 Next: task creation/capture recovery, then structural mutations/deletion and
 hub/caller/account-state acceptance. G0 stays open; hosted work and enrollment
 stay on hold. Deferred restoration and original offline packs remain untouched.
+
+## G0 task creation and capture preparation
+
+Commonplace #129 and Roadmap #23 are merged. The next bounded work group
+uses the unchanged production source at `80d1584b52a37198ad906c46cef864ad295a6cbd`.
+Only the ignored loopback fixture is patched; root source, public assets, auth
+keys, deployment and hub protocol remain untouched. General_apps is the intended
+backend; hosted changes/enrollment stay on hold and restoration stays deferred.
+
+The copied Group form now awaits confirmed task creation and retains its title
+on blur, Close or failed save. The copied CaptureSheet submits up to 32 items
+as one transaction; it retains the original text and classification. The new
+`ga_roadmap_create_tasks` contract is candidate 15 in Commonplace, after 01/03.
+It creates missing capture folders and tasks together or rolls back all of them.
+Saved request/item identities prevent repeated inserts on uncertain retry.
+Separate new capture requests reuse the current owned category folders.
+Ambiguous or repurposed folders require review, not another guessed folder.
+
+Valid Save attempts persist before any network call. Unsubmitted text is kept
+in-page only. Each request has its own `rm-task-create-v1:<owner>:<request>` slot,
+so simultaneous tabs cannot overwrite another request's recovery envelope.
+Normally resolve pending work before creating more. Request/owner/epoch checks,
+quota errors, malformed replies and missing current rows never claim success.
+The recovery panel previews original titles/text and retries the exact batch
+after reload. A confirmation clears only its associated form draft; it cannot
+clear a different draft in another form. Payload fields are bounded (4096-byte
+titles, 32 tags of 80 bytes, 32 KiB original text); the saved UTF-8 envelope is
+limited to 48 KiB, below the server's 64 KiB JSON limit.
+
+Local application updates only returned rows, retains unrelated edits, logs and
+session proof, and detects overlapping target edits. Legacy tree mutation and
+rollback lifetimes are kept out of creation. The normal addFolder/move workflow
+remains a structural follow-up; its rollback lifetime is guarded here. Capture's
+old automatic network retry and optimistic timed Undo are absent in the preview:
+use saved Retry, and review confirmed tasks in Inbox before explicit deletion.
+A discard never undoes a server insert and requires reload before new creation.
+Nothing clears personal storage or offline packs.
+
+Tests add controller validation/recovery cases, actual Group/CaptureSheet browser
+flows and four disposable Supabase groups with real synthetic JWTs, concurrent
+requests, ownership waits, receipt rollback and committed revocation. These do
+not approve hosted or physical-device acceptance. The endpoint preserves the
+existing owner policy; it is not a Roadmap admission allowlist.
+
+Next bounded G0 group: **structural task changes and deletion recovery** (moves,
+reordering, folder creation, batch/Undo behavior and retained history). Hub and
+suggestion delivery, actual study callers, account-scoped local state and the
+other shared-project gates remain separate. G0 remains open.

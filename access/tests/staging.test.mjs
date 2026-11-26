@@ -15,6 +15,9 @@ test('isolated staging pins inputs and preserves original app files and authenti
   assert.equal(await readFile(join(temp,'src/store/useStore.ts'),'utf8'),original);
   const store=await readFile(join(stage,'src/store/useStore.ts'),'utf8');assert.match(store,/await sessionSync.setDailyTask/);
   assert.match(store,/import \{ runDailyReset \}/);assert.doesNotMatch(store,/optimistic state already unchecked/);
+  assert.match(store,/await saveTaskCreation/);assert.doesNotMatch(store,/captureWithRetry|doCapture|captureChain/);
+  const group=await readFile(join(stage,'src/features/tree/Group.tsx'),'utf8');assert.match(group,/TaskCreationForm/);assert.doesNotMatch(group,/onBlur=|void addTask/);
+  assert.match(await readFile(join(stage,'src/features/capture/CaptureSheet.tsx'),'utf8'),/CaptureCreationForm/);
   assert.match(store,/await saveDailyLog/);assert.match(store,/runLegacyLogDelete/);
   const log=await readFile(join(stage,'src/features/log/TodaysLog.tsx'),'utf8');
   assert.match(log,/DailyLogForm/);assert.doesNotMatch(log,/onBlur=|Number.parseInt/);
