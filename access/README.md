@@ -113,3 +113,38 @@ public deployment remain unchanged. Existing external importers still require
 their own verified-JWT and explicit-ID cutover; this staging flow does not silently
 replace their API. G0 remains open, with hosted work and enrollment on hold and
 restoration deferred.
+
+## Daily reset recovery (candidate 12)
+
+The original minute timer unchecks tasks before independent saves finish; failed
+rows then fall out of its next retry filter. The isolated preview now uses
+`ga_roadmap_reset_daily_tasks(p_tasks, p_day_key, p_timezone, p_request_id)` after
+Commonplace candidates 01/03/08/12. Each of at most 100 targets carries its explicit
+UUID and original server timestamp. The server verifies the existing local-time
+minus-four-hours logical day, ownership, versions and stale daily eligibility.
+The whole batch commits with private before/after history, or rolls back. Only the
+checkbox/version changes; streaks and study sessions remain intact.
+
+The timer keeps the original account/day/timezone/batch in durable storage before
+sending and changes the screen only after confirmation. A failed or uncertain
+request stays visible in **Daily reset recovery**. Subsequent timer ticks do not
+create another batch over it. Retry uses the exact original request; a stale
+version or changed day requires review. Replay returns current rows, so it cannot
+reset a newer completed task. Account generations, validation and cross-tab
+checks prevent stale replies from clearing another saved action.
+
+Unrelated edits and session history remain visible. A target edit made while the
+reset is running is kept, with the reset retained for review after that edit
+settles. Pending daily actions and resets must be resolved in order. Discard is
+explicit, does not undo a server commit, and pauses automatic reset until reload
+so an old local view does not recreate it immediately. Reload retains local data
+and reads the current server tasks. General editor rollback/capture/bulk/log
+failures still have their own acceptance work; this preparation does not certify
+them or change production deployment, auth storage or the hub.
+
+The new synthetic browser check drives the actual staged timer worker/store and
+recovery controls through failure, the next minute-style tick, retry, retained
+streak/session data and a concurrent title edit. Commonplace CI verifies real JWT
+concurrency, rollback and pause/revocation. Hosted/device acceptance and deferred
+restoration remain separate. See
+[reset readiness](https://github.com/Celeritas7/Commonplace/blob/main/platform/acceptance/ROADMAP-RESET-READINESS.md).

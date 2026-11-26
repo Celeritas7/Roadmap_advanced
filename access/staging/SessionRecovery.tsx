@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react'
-import {sessionActions,type PendingAction,type ActionResult} from './studySessions.ts'
+import {sessionActions,runSessionAction,type PendingAction,type ActionResult} from './studySessions.ts'
 import {useStore} from './useStore.ts'
 import type {TaskRow,SessionRow} from '../types.ts'
 export function applySessionResult(result:ActionResult) {
@@ -16,7 +16,7 @@ export function SessionRecovery() {
  try{pending=sessionActions.list()}catch{issue='Saved session actions need review. No request was sent.'}
  const retry=async(p:PendingAction)=>{
   setBusy(true);setMessage('')
-  try{applySessionResult(await sessionActions.run(p));setMessage('Saved session confirmed.')}
+  try{applySessionResult(await runSessionAction(p));setMessage('Saved session confirmed.')}
   catch(e){setMessage(e instanceof Error?e.message:'Save not confirmed. Retry remains saved.')}
   finally{setBusy(false)}
  }

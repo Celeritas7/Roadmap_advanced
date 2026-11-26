@@ -21,9 +21,18 @@ export async function prepareStaging(sourceRoot=root) {
  await mkdir(stage,{recursive:true});
  for(const file of ['src','public','index.html','package.json','package-lock.json','tsconfig.json','vite.config.ts','tailwind.config.ts','postcss.config.js'])
   await cp(join(sourceRoot,file),join(stage,file),{recursive:true});
- for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx'])
+ for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts'])
   await cp(new URL('./staging/'+file,import.meta.url),join(stage,'src/store',file));
+ let ordinary=original['src/store/sync.ts'];
+ ordinary="import { trackTaskWrite } from './task-write-activity.ts'\n"+ordinary
+  .replace('export async function updateTask(id: string, patch: TaskUpdate): Promise<TaskRow> {',
+   'export function updateTask(id: string, patch: TaskUpdate): Promise<TaskRow> { return trackTaskWrite(id,()=>updateTaskWrite(id,patch)) }\nasync function updateTaskWrite(id: string, patch: TaskUpdate): Promise<TaskRow> {');
+ await writeFile(join(stage,'src/store/sync.ts'),ordinary);
  let store=original['src/store/useStore.ts'];
+ const resetStart=store.indexOf('// V2-J: at/after 4 AM'),resetEnd=store.indexOf('// Quick-capture worker',resetStart);
+ if(resetStart<0||resetEnd<0)throw Error('Daily reset source changed');
+ store="import { runDailyReset } from './daily-reset-sync.ts'\n"+store.slice(0,resetStart)+store.slice(resetEnd);
+ store=store.replaceAll('runDailyReset(get, set)','runDailyReset()');
  const hook='    const done = !target.done';
  if(store.split(hook).length!==2)throw Error('Task mutation changed');
  store="import { applySessionResult } from './SessionRecovery.tsx'\n"+store.replace(hook,`    if (isDaily(target)) {
@@ -61,9 +70,9 @@ ${hook}`);
       const {comparisons,items}=snapshot`);
  await writeFile(join(stage,'src/store/useStore.ts'),store);
  let app=original['src/App.tsx'].replace("import { bootHub } from './lib/rmHub.ts'\n",'');
- app="import { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
+ app="import { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
   .replace("    if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)","    // Hub consumption stays off in this isolated fixture preview.")
-  .replace('<Header />','<Header /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
+  .replace('<Header />','<Header /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
   .replace("Couldn't save that change — it's been undone.",'{error}');
  await writeFile(join(stage,'src/App.tsx'),app);
  let compare=original['src/features/compare/CompareSheet.tsx']

@@ -1,3 +1,4 @@
+import {trackTaskWrite,assertNoPendingReset} from './task-write-activity.ts'
 import {supabase} from '../lib/supabase.ts'
 import {dayKey} from '../lib/dailyReset.ts'
 import type {SessionRow,TaskRow} from '../types.ts'
@@ -37,7 +38,7 @@ export async function startSession(taskId:string,day=dayKey()):Promise<void> {
  assertUnlocked();await sessionActions.run(sessionActions.prepare('start',taskId,{day}))
 }
 export async function setDailyTask(task:TaskRow):Promise<ActionResult> {
- assertUnlocked();return sessionActions.run(sessionActions.prepare('daily',task.id,
+ assertUnlocked();assertNoPendingReset(task.id);return runSessionAction(sessionActions.prepare('daily',task.id,
   {done:!task.done,expectedUpdatedAt:task.updated_at}))
 }
 // Legacy exports remain type-compatible but daily UI must use one transaction.
@@ -46,4 +47,9 @@ export async function completeSessionManually(_taskId:string,_durationMin:number
 }
 export async function uncompleteSessionToday(_taskId:string):Promise<void> {
  throw Error('Use the atomic daily-task action in this staging client.')
+}
+
+export async function runSessionAction(p:PendingAction):Promise<ActionResult>{
+ assertUnlocked();if(p.kind==='start')return sessionActions.run(p)
+ assertNoPendingReset(p.taskId);return trackTaskWrite(p.taskId,()=>sessionActions.run(p))
 }
