@@ -1,0 +1,25 @@
+name: Roadmap session staging
+on:
+  pull_request:
+    paths: ['access/**', '.github/workflows/session-access.yml', '.github/workflows/deploy.yml', 'src/**']
+  push:
+    branches: [main]
+    paths: ['access/**', '.github/workflows/session-access.yml', '.github/workflows/deploy.yml']
+permissions:
+  contents: read
+jobs:
+  fixture-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --experimental-strip-types --test access/tests/*.test.mjs
+      - run: node access/prepare-staging.mjs --fixture
+      - run: npx tsc --noEmit --project .staging/session-fixture/tsconfig.json
+      - run: npx vite build .staging/session-fixture --config .staging/session-fixture/vite.config.ts
+      - run: npx playwright install --with-deps chromium
+      - run: node --experimental-strip-types --test access/tests/*.browser.mjs
