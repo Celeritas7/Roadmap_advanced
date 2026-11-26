@@ -21,7 +21,7 @@ export async function prepareStaging(sourceRoot=root) {
  await mkdir(stage,{recursive:true});
  for(const file of ['src','public','index.html','package.json','package-lock.json','tsconfig.json','vite.config.ts','tailwind.config.ts','postcss.config.js'])
   await cp(join(sourceRoot,file),join(stage,file),{recursive:true});
- for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts','task-edit-contract.ts','task-edit-sync.ts','TaskEditRecovery.tsx','daily-log-contract.ts','daily-log-sync.ts','DailyLogRecovery.tsx','DailyLogForm.tsx','task-creation-contract.ts','task-creation-sync.ts','TaskCreationForm.tsx','TaskCreationRecovery.tsx'])
+ for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts','task-edit-contract.ts','task-edit-sync.ts','TaskEditRecovery.tsx','daily-log-contract.ts','daily-log-sync.ts','DailyLogRecovery.tsx','DailyLogForm.tsx','task-creation-contract.ts','task-creation-sync.ts','TaskCreationForm.tsx','TaskCreationRecovery.tsx','structure-contract.ts','structure-sync.ts','StructureRecovery.tsx','NewFolderMoveForm.tsx'])
   await cp(new URL('./staging/'+file,import.meta.url),join(stage,'src/store',file));
  let ordinary=original['src/store/sync.ts'];
  ordinary="import { trackTaskWrite } from './task-write-activity.ts'\n"+ordinary
@@ -125,11 +125,32 @@ ${hook}`);
  const worker=store.indexOf('// Quick-capture worker');
  if(worker<0)throw Error('Capture worker changed');
  store=store.slice(0,worker).replace('  TaskInsert,\n','').replace("import { CAPTURE_ROOT, guessCapture, isNetworkError } from '../lib/capture.ts'\n",'');
+
+ store="import { moveTaskStructures,reorderTaskStructure,queueTaskDeletion,newFolderMoveDraft,saveStructure } from './structure-sync.ts'\nimport { assertNoPendingStructure } from './task-write-activity.ts'\n"+store;
+ for(const [name,body] of Object.entries({
+  updateTask:`if(isMetadata(patch)){await editTaskMetadata([{id,patch}]);return;} await moveTaskStructures([{id,patch}]);`,
+  updateTasks:`if(!patches.length)return; if(patches.every(p=>isMetadata(p.patch))){await editTaskMetadata(patches);return;} await moveTaskStructures(patches);`,
+  deleteTask:`await queueTaskDeletion([id]);`,
+  deleteTasks:`await queueTaskDeletion(ids);`,
+  reorderTask:`await reorderTaskStructure(taskId,newIndex);`,
+  addFolder:`const result=await saveStructure(newFolderMoveDraft([],title,parentId,tags));return result.tasks.find(t=>t.kind==='group')!.id;`,
+ })) {
+  const start=store.indexOf('  '+name+': async '),open=store.indexOf(' => {',start)+5,end=store.indexOf('\n  },',open);
+  if(start<0||open<5||end<0)throw Error('Structural action changed: '+name);
+  store=store.slice(0,open)+'\n    try { '+body+' } catch(e) { set({error:errorMessage(e)}); throw e }'+store.slice(end);
+ }
+ for(const name of ['addResource','deleteResource']) {
+  const start=store.indexOf('  '+name+': async '),open=store.indexOf(' => {',start)+5;
+  if(start<0||open<5)throw Error('Resource action changed');
+  const end=store.indexOf('\n  },',open);
+  store=store.slice(0,open)+'\n    assertNoPendingStructure(); return runLegacyTaskMutation(async()=>{'+store.slice(open,end)+'\n    })'+store.slice(end);
+ }
+ store=store.replace('editTaskMetadata,isMetadata,hasMetadata','editTaskMetadata,isMetadata').replace(/import \{ subtreeIds \}[^\n]+\n/,'');
  await writeFile(join(stage,'src/store/useStore.ts'),store);
  let app=original['src/App.tsx'].replace("import { bootHub } from './lib/rmHub.ts'\n",'');
- app="import { TaskCreationRecovery } from './store/TaskCreationRecovery.tsx'\nimport { DailyLogRecovery } from './store/DailyLogRecovery.tsx'\nimport { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
+ app="import { StructureRecovery } from './store/StructureRecovery.tsx'\nimport { TaskCreationRecovery } from './store/TaskCreationRecovery.tsx'\nimport { DailyLogRecovery } from './store/DailyLogRecovery.tsx'\nimport { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
   .replace("    if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)","    // Hub consumption stays off in this isolated fixture preview.")
-  .replace('<Header />','<Header /><TaskCreationRecovery /><DailyLogRecovery /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
+  .replace('<Header />','<Header /><StructureRecovery /><TaskCreationRecovery /><DailyLogRecovery /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
   .replace("Couldn't save that change — it's been undone.",'{error}');
  await writeFile(join(stage,'src/App.tsx'),app);
 
@@ -168,7 +189,57 @@ ${hook}`);
  group="import { TaskCreationForm } from '../../store/TaskCreationForm.tsx'\n"+group.slice(0,addTaskForm)
   .replace("import { useState, type CSSProperties }", "import { type CSSProperties }")
   .replace('<AddTaskRow parentId={node.id} />','<TaskCreationForm parentId={node.id} />');
+
+ const groupDeleteStart=group.indexOf('            const rows = useStore.getState().tree'),groupDeleteEnd=group.indexOf('          }}',groupDeleteStart);
+ if(groupDeleteStart<0||groupDeleteEnd<0)throw Error('Group delete control changed');
+ group=group.slice(0,groupDeleteStart)+'            void deleteTask(node.id).catch(()=>{})\n'+group.slice(groupDeleteEnd);
+ group=group.replace('subtreeIds, type TreeNode','type TreeNode');
  await writeFile(join(stage,'src/features/tree/Group.tsx'),group);
+
+ let tree=original['src/features/tree/Tree.tsx'].replace('void reorderTask(draggedId, newIndex)','void reorderTask(draggedId, newIndex).catch(()=>{})');
+ await writeFile(join(stage,'src/features/tree/Tree.tsx'),tree);
+ let inbox=original['src/features/inbox/InboxView.tsx'];
+ inbox="import { NewFolderMoveForm } from '../../store/NewFolderMoveForm.tsx'\n"+inbox
+  .replace('  const addFolder = useStore((s) => s.addFolder)\n','')
+  .replace('const ok = (p: Promise<unknown>) => void p.catch(() => {})',"const ok = (p: Promise<unknown>) => void p.catch(e => setLive(e instanceof Error?e.message:'Change was not confirmed.'))")
+  .replace('const pendBatch = (ts: TaskRow[], kind: PendingKind) => {',`const pendBatch = (ts: TaskRow[], kind: PendingKind) => {
+    if(kind==='delete'){ok(deleteTasks(ts.map(t=>t.id)));setLive('Review the deletion in Tree change recovery. Nothing has been deleted.');return}`)
+  .replace('const pend = (t: TaskRow, kind: PendingKind) => {',`const pend = (t: TaskRow, kind: PendingKind) => {
+    if(kind==='delete'){ok(deleteTask(t.id));setLive('Review the deletion in Tree change recovery. Nothing has been deleted.');return}`)
+  .replace('const reparent = (id: string, parent: string | null) => ok(updateTask(id, { parent_id: parent, position: endOf(parent) }))',
+   'const reparent = (id: string, parent: string | null) => updateTask(id, { parent_id: parent, position: endOf(parent) })')
+  .replace('const reparentMany = (ts: TaskRow[], parent: string) => {','const reparentMany = async (ts: TaskRow[], parent: string) => {')
+  .replace('ok(updateTasks(ts.map((t, i) => ({ id: t.id, patch: { parent_id: parent, position: base + i } }))))',
+   'await updateTasks(ts.map((t, i) => ({ id: t.id, patch: { parent_id: parent, position: base + i } })))')
+  .replace('const onMove = (target: string, v: string) => {','const onMove = async (target: string, v: string) => {')
+  .replace(') reparent(picked.id, parent)',') await reparent(picked.id, parent)')
+  .replace(') reparentMany(sel, parent)',') await reparentMany(sel, parent)')
+  .replace(') reparent(target, parent)',') await reparent(target, parent)');
+ const newStart=inbox.indexOf('  const moveToNew = '),newEnd=inbox.indexOf('  const keepAll =',newStart);
+ if(newStart<0||newEnd<0)throw Error('Inbox new-folder source changed');
+ inbox=inbox.slice(0,newStart)+`  const moveIds=(target:string)=>target==='folder'?(picked?[picked.id]:[]):target==='selection'?sel.map(t=>t.id):[target]
+`+inbox.slice(newEnd);
+ const fieldStart=inbox.indexOf('  const newField = '),fieldEnd=inbox.indexOf('\n  const pillsFor =',fieldStart);
+ if(fieldStart<0||fieldEnd<0)throw Error('Inbox folder field changed');
+ inbox=inbox.slice(0,fieldStart)+`  const newField=(target:string)=>newFor?.target===target&&<NewFolderMoveForm key={target} ids={moveIds(target)} onDone={()=>{setNewFor(null);setSelected(new Set());setLive('Folder move confirmed.')}} onClose={()=>setNewFor(null)}/>
+`+inbox.slice(fieldEnd);
+ inbox=inbox.replace('onNew={(name) => ok(moveToNew(sheet.target, name))}',
+  "newFolder={(name)=><NewFolderMoveForm ids={moveIds(sheet.target)} initialTitle={name} onDone={()=>{setSheet(null);setSelected(new Set())}} onClose={()=>setSheet(null)}/>}" );
+ // Desktop select handlers report failures; the mobile sheet awaits the move.
+ inbox=inbox.replace(/onChange=\{\(e\) => onMove\(([^\n]+?)\)\}/g,'onChange={(e) => ok(onMove($1))}');
+ await writeFile(join(stage,'src/features/inbox/InboxView.tsx'),inbox);
+ let parts=original['src/features/inbox/parts.tsx']
+  .replace('allowTop, onPick, onNew, onClose','allowTop, onPick, newFolder, onClose')
+  .replace('onPick: (id: string) => void; onNew: (name: string) => void;', 'onPick: (id: string) => Promise<void>; newFolder: (name:string)=>ReactNode;')
+  .replace("  const [q, setQ] = useState('')", "  const [q, setQ] = useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')")
+  .replace('const pick = (id: string) => { if (id !== TOP) pushRecent(id); onPick(id); onClose() }',
+   "const pick = async (id:string)=>{if(busy)return;setBusy(true);setError('');try{await onPick(id);if(id!==TOP)pushRecent(id);onClose()}catch(e){setError(e instanceof Error?e.message:'Move was not confirmed.')}finally{setBusy(false)}}")
+  .replace('<Sheet title={title} onClose={onClose}>','<Sheet title={title} onClose={()=>{if(!busy)onClose()}}><p role="status">{error}</p>')
+  .replaceAll('onClick={() => pick(', 'disabled={busy} onClick={() => void pick(');
+ const formStart=parts.indexOf('        <form className="ib-new"'),formEnd=parts.indexOf('        </form>',formStart);
+ if(formStart<0||formEnd<0)throw Error('Mobile move form changed');
+ parts=parts.slice(0,formStart)+'        newFolder(name)'+parts.slice(formEnd+'        </form>'.length);
+ await writeFile(join(stage,'src/features/inbox/parts.tsx'),parts);
  await writeFile(join(stage,'src/features/capture/CaptureSheet.tsx'),"export { CaptureCreationForm as CaptureSheet } from '../../store/TaskCreationForm.tsx'\n");
 
  let log=original['src/features/log/TodaysLog.tsx'].replace("import { useMemo, useState } from 'react'","import { useMemo } from 'react'")

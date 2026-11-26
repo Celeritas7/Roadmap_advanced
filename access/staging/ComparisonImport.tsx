@@ -1,3 +1,4 @@
+import {assertNoPendingStructure} from './task-write-activity.ts'
 import {useEffect,useState} from 'react'
 import {comparisonImports,comparisonEdits,previewComparisonImport,retryComparisonImport} from './compareSync.ts'
 import {normalizeImport,importItemFields,type ImportDocument,type ImportIntent,type ImportState} from './comparison-import-contract.ts'
@@ -38,7 +39,7 @@ export function ComparisonImport({comparisonId}:{comparisonId?:string}={}){
  async function confirm(){
   if(!review||!comparisonId)return
   try{
-   comparisonImports.assertContext(review.state.context)
+   assertNoPendingStructure();comparisonImports.assertContext(review.state.context)
    if(comparisonEdits.list().some(p=>p.comparisonId===comparisonId))throw Error('Review the pending preference change first.')
    const p=comparisonImports.prepare({comparisonId,taskId:review.state.comparison.task_id as string|null,
     expectedRevision:review.state.revision,document:review.document})

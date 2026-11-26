@@ -295,7 +295,63 @@ requests, ownership waits, receipt rollback and committed revocation. These do
 not approve hosted or physical-device acceptance. The endpoint preserves the
 existing owner policy; it is not a Roadmap admission allowlist.
 
-Next bounded G0 group: **structural task changes and deletion recovery** (moves,
-reordering, folder creation, batch/Undo behavior and retained history). Hub and
+The subsequent structural task/deletion preparation is recorded below. Hub and
 suggestion delivery, actual study callers, account-scoped local state and the
 other shared-project gates remain separate. G0 remains open.
+
+
+## Structural task changes and deletion review (candidate 16)
+
+Commonplace #131 and Roadmap #24 are merged. The builder pins the Roadmap
+`35f9cb51eaa3cab32789e5ae59cf380294ff8b91` source and changes only its ignored
+loopback copy. Commonplace candidate **16**, after **01/03/09/15**, adds
+`ga_roadmap_structure(p_payload, p_request_id)`. This is G0 preparation, not a
+hosted rollout or a new Commonplace migration.
+
+Moves and sibling reorder now save one versioned transaction; new-folder creation
+and its moves commit together. Desktop/mobile forms keep failed names, show the
+saved retry and clear only their associated confirmation. Only acknowledged
+rows update the current tree. Unrelated edits, notes and proof remain intact;
+a conflicting local target stays available for review. Earlier legacy completion
+or resource-write rollback must settle before preparing structural work.
+
+Deletion first saves a review containing every task and descendant title, without
+sending anything. **Tree change recovery** offers **Confirm deletion** or **Cancel
+deletion**. Cancel before any attempt is a local undo. Attempt state is persisted
+before the RPC, so an uncertain result cannot be presented as an unsent cancellation.
+The copied Inbox does not commit deletion when its timer expires or the view
+unmounts. Existing Keep timers have separate unchanged behavior.
+
+Attempted requests expose **Retry tree change**, explicit **Discard tree retry**
+and Reload. Discard is not server undo; it requires a current-tree reload before
+more writes. Exact original account/request/UUID/version details persist across
+reload in `rm-structure-v1:<owner>:<request>` slots. Storage failure sends nothing.
+Account epochs, exact acknowledgements and saved-byte checks protect original
+retries. Other interacting write paths check pending structures before preparing
+another intent. These client guards do not replace server authorization.
+
+The server retains sessions, daily logs, comparisons and suggestions under the
+same owner with null optional task links. Feedback/proof and notes survive.
+Task resources leave the active view but their exact original rows remain in
+private deletion history with task snapshots. No restore API or post-commit Undo
+is provided. Replays never delete again or recreate a removed task. Mirrors,
+foreign/non-group parents, cycles, stale versions and incomplete subtrees fail
+atomically. Existing direct writers still need coordinated cutover.
+
+Limits: 100 selected tasks (or a folder-only request), 48 KiB UTF-8 saved envelope,
+64 KiB server JSON, 5,000 owned tree rows and 1 MiB deletion evidence. Large changes
+stop for review, without partial splitting/truncation. Receipts and UUID reservations
+require an explicit retention/erasure review before installation.
+
+Controller and real-browser checks cover review/cancel, unmount without delete,
+uncertain save/reload, exactly-once folder moves, reorder, account changes,
+competing tabs, quotas, old rollback and newer local edits. Commonplace's disposable
+Supabase tests add real JWT ownership, concurrency, new-child lock waits, history
+rollback and revocation. Physical iPad/Android and hosted acceptance remain open.
+See [structural readiness](https://github.com/Celeritas7/Commonplace/blob/main/platform/acceptance/ROADMAP-STRUCTURE-READINESS.md).
+
+Next bounded G0 group: **suggestion and hub delivery readiness**; then actual
+study callers and account-scoped local-state acceptance. Remaining direct writers
+need explicit cutover checks. Root source, auth keys, deployment, hub protocol,
+offline packs and personal data are unchanged. Hosted work/enrollment remain on
+hold and restoration remains deferred at its prior checkpoint.

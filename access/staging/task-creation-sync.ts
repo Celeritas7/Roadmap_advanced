@@ -1,3 +1,4 @@
+import {assertNoPendingStructure} from './task-write-activity.ts'
 import {supabase} from '../lib/supabase.ts'
 import {useStore} from './useStore.ts'
 import {guessCapture,splitCapture} from '../lib/capture.ts'
@@ -15,6 +16,7 @@ supabase.auth.onAuthStateChange((_event,session)=>{
 window.addEventListener('storage',()=>taskCreations.notify())
 setTaskCreationGuard(()=>{if(taskCreations.list().length||applying)throw Error('Resolve the saved task creation before another tree change.')})
 function ready(){
+ assertNoPendingStructure()
  if(locked)throw Error('Reload safely to continue with the current account.')
  taskCreations.assertContext(taskCreations.context())
  if(useStore.getState().loading)throw Error('Wait for current tasks to load.')

@@ -1,3 +1,4 @@
+import {assertNoPendingStructure} from './task-write-activity.ts'
 import {supabase} from '../lib/supabase.ts'
 import {useStore} from './useStore.ts'
 import {createDailyLogs,type LogIntent} from './daily-log-contract.ts'
@@ -12,6 +13,7 @@ supabase.auth.onAuthStateChange((_event,session)=>{
 })
 window.addEventListener('storage',()=>dailyLogs.notify())
 function ready(){
+ assertNoPendingStructure()
  if(locked)throw Error('Reload safely to continue with the current account.')
  dailyLogs.assertContext(dailyLogs.context())
  if(useStore.getState().loading)throw Error('Wait for current logs to load.')
@@ -50,3 +52,5 @@ export async function runLegacyLogDelete<T>(write:()=>Promise<T>):Promise<T>{
  deleting++
  try{return await write()}finally{deleting--}
 }
+
+export const legacyLogsBusy=()=>deleting>0

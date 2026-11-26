@@ -14,11 +14,11 @@ let editGuard:(ids?:string[])=>void=()=>{},legacyActive=0
 export const setTaskEditGuard=(guard:(ids?:string[])=>void)=>{editGuard=guard}
 export const assertNoPendingTaskEdit=(ids?:string[])=>editGuard(ids)
 export function taskEditPending(id:string){try{editGuard([id]);return false}catch{return true}}
-export const ordinaryTasksBusy=()=>creating>0||legacyActive>0||[...active.values()].some(n=>n>0)
-// Existing structural paths still use whole-tree rollback. Keep metadata writes
-// out of their lifetime, including error recovery reads, until that later work.
+export const ordinaryTasksBusy=()=>structuring>0||creating>0||legacyActive>0||[...active.values()].some(n=>n>0)
+// Remaining legacy writes (including non-daily completion) can roll back the
+// tree. Keep acknowledged writes out of their full recovery lifetime.
 export async function runLegacyTaskMutation<T>(write:()=>Promise<T>):Promise<T>{
- creationGuard();editGuard();legacyActive++
+ structureGuard();creationGuard();editGuard();legacyActive++
  try{return await write()}finally{legacyActive--}
 }
 
@@ -29,3 +29,15 @@ export async function runTaskCreation<T>(write:()=>Promise<T>):Promise<T>{
  creating++
  try{return await write()}finally{creating--}
 }
+
+let structureGuard:()=>void=()=>{},structuring=0,structureRevision=0
+export const setStructureGuard=(guard:()=>void)=>{structureGuard=guard}
+export const assertNoPendingStructure=()=>structureGuard()
+export const assertNoPendingTaskCreation=()=>creationGuard()
+export async function runStructureMutation<T>(write:()=>Promise<T>):Promise<T>{
+ if(ordinaryTasksBusy())throw Error('Wait for the current task change.')
+ structuring++;structureRevision++
+ try{return await write()}finally{structuring--;structureRevision++}
+}
+
+export const structureWriteVersion=()=>structureRevision
