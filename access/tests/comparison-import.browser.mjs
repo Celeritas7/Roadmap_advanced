@@ -1,0 +1,66 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {writeFile,rm} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import {createServer} from 'vite';
+import {chromium} from 'playwright';
+const root=fileURLToPath(new URL('../../.staging/session-fixture/',import.meta.url));
+test('actual comparison dialog previews replacement and recovers the exact failed import without losing other edits',async()=>{
+ const path=root+'comparison-import-test.html';
+ await writeFile(path,`<div id="root"></div><script type="module">
+ import React from 'react';import {createRoot} from 'react-dom/client';
+ import {CompareSheet} from '/src/features/compare/CompareSheet.tsx';import {useStore} from '/src/store/useStore.ts';
+ import {comparisonEdits,comparisonImports} from '/src/store/compareSync.ts';import {supabase} from '/src/lib/supabase.ts';
+ await supabase.auth.getSession();
+ const id=n=>'b0000000-0000-4000-8000-'+String(n).padStart(12,'0');
+ comparisonEdits.bind(id(1));comparisonImports.bind(id(1));
+ const comparison={id:id(3),task_id:id(2),title:'Synthetic import study',need:null,source:null,notes:'Keep study note',weights:{price:2},chosen_item:id(4),created_at:'2026-11-25T00:00:00Z',updated_at:'2026-11-25T00:00:00Z'};
+ const product={id:id(4),comparison_id:id(3),name:'Old product',currency:'JPY',price:50,quality:null,life_years:null,warranty_months:null,rating:null,review_count:null,pros:[],cons:[],extra:{},position:0,notes:'Keep product note'};
+ const other={...comparison,id:id(5),chosen_item:null,title:'Other comparison'};
+ window.documentInput={title:'Reviewed import',items:[{id:id(4),name:'New product',price:80}]};window.calls=[];window.mode='deny';
+ window.serverState={comparison,items:[product],revision:'a'.repeat(64)};
+ useStore.setState({comparisons:[comparison,other],comparisonItems:[product],compareOpen:id(3),loading:false,initialized:true});
+ supabase.rpc=async(name,args)=>{
+  if(name==='ga_roadmap_preview_import')return {data:window.serverState,error:null};
+  window.calls.push({name,args});
+  if(window.mode==='deny')return {error:{code:'42501'}};
+  window.serverState={comparison:{...comparison,title:args.p_document.title,updated_at:'2026-11-27T00:00:00Z'},items:[{...product,...args.p_document.items[0]}],revision:'b'.repeat(64)};
+  return {data:{...window.serverState,request_id:args.p_request_id,replayed:true},error:null};
+ };
+ supabase.from=()=>({select(){return this},eq(){return this},order(){return new Promise(resolve=>window.finishRead=()=>resolve({data:[{...comparison,items:[product]},{...other,items:[]}],error:null}))}});
+ window.readOld=()=>{window.oldRead=useStore.getState().loadComparisons()};
+ window.changeOther=()=>useStore.setState(s=>({comparisons:s.comparisons.map(c=>c.id===id(5)?{...c,title:'New unrelated edit'}:c)}));
+ window.state=()=>useStore.getState();window.pending=()=>comparisonImports.list();
+ createRoot(document.getElementById('root')).render(React.createElement(CompareSheet));window.ready=true;
+ </script>`);
+ let server,browser;
+ try{
+  server=await createServer({root,configFile:root+'vite.config.ts',server:{host:'127.0.0.1',port:0}});await server.listen();
+  browser=await chromium.launch({headless:true,...(process.env.ROADMAP_TEST_CHROMIUM?{executablePath:process.env.ROADMAP_TEST_CHROMIUM}:{})});
+  const page=await browser.newPage();await page.route('http://127.0.0.1:54321/**',r=>r.fulfill({status:200,contentType:'application/json',body:'[]'}));
+  await page.goto('http://127.0.0.1:'+server.httpServer.address().port+'/comparison-import-test.html');await page.waitForFunction(()=>window.ready===true);
+  await page.getByText('Review a comparison import',{exact:true}).click();
+  await page.getByRole('button',{name:'Load current study JSON',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('textarea').value.includes('Old product'));
+  await page.getByRole('textbox',{name:'Comparison JSON'}).fill(await page.evaluate(()=>JSON.stringify(window.documentInput)));
+  await page.getByRole('button',{name:'Preview replacement',exact:true}).click();
+  const confirm=page.getByRole('button',{name:'Confirm import',exact:true});await confirm.waitFor();
+  assert.equal(await page.evaluate(()=>window.calls.length),0);
+  await page.evaluate(()=>window.changeOther());await confirm.click();
+  const retry=page.getByRole('button',{name:'Retry saved import',exact:true});await retry.waitFor();
+  await page.getByText('Access denied or imports paused. Your original import stays saved.').waitFor();
+  assert.equal(await page.evaluate(()=>window.state().comparisonItems[0].name),'Old product');
+  assert.equal(await page.evaluate(()=>window.pending().length),1);
+  assert.equal(await page.getByRole('button',{name:'Unpick',exact:true}).isDisabled(),true);
+  const first=await page.evaluate(()=>window.calls[0]);
+  await page.evaluate(()=>{window.readOld();window.mode='success'});await page.waitForFunction(()=>typeof window.finishRead==='function');
+  await retry.click();await page.getByText('Import confirmed. Showing the current saved study.').waitFor();
+  await page.evaluate(async()=>{window.finishRead();await window.oldRead});
+  assert.deepEqual((await page.evaluate(()=>window.calls[1])).args,first.args);
+  assert.equal(await page.evaluate(()=>window.state().comparisonItems[0].name),'New product');
+  assert.equal(await page.evaluate(()=>window.state().comparisons[1].title),'New unrelated edit');
+  assert.equal(await page.evaluate(()=>window.state().comparisons[0].notes),'Keep study note');
+  assert.equal(await page.evaluate(()=>window.state().comparisonItems[0].notes),'Keep product note');
+  assert.equal(await page.evaluate(()=>window.pending().length),0);
+ }finally{await browser?.close();await server?.close();await rm(path,{force:true})}
+});
