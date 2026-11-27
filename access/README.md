@@ -356,3 +356,33 @@ study callers and account-scoped local-state acceptance. Remaining direct writer
 need explicit cutover checks. Root source, auth keys, deployment, hub protocol,
 offline packs and personal data are unchanged. Hosted work/enrollment remain on
 hold and restoration remains deferred at its prior checkpoint.
+
+## Suggestion recovery and hub delivery preparation
+
+Commonplace candidate 17 (after 01/03/09) adds an atomic answer/session transaction
+and durable skip effect. This preview now patches copies of the actual suggester,
+NowStrip and adapter. `Suggestion answer recovery` preserves account-owned request
+IDs, original logical days and exact skip addresses through lost replies/reload.
+Each RPC carries a captured token for the original account; a newly switched SDK
+session cannot borrow the previous account's pending payload.
+Only confirmed local application and required hub publication consume a retry.
+Contract refusals remain visible without automatic resending; a failed session
+refresh keeps its acknowledgement pending. Existing study proof, notes, legacy
+outboxes and downloaded packs remain untouched.
+
+Saved live suggestions retry publication with their original timestamp. Nested
+addresses participate in the copied adapter's diff cache; rejected/deferred
+handlers retain their distinct meanings. No changes are made to root `src/`,
+`public/`, authentication keys, deployment, hub routes or production data. Hub boot
+stays off. Synthetic browser tests invoke callbacks explicitly; they do not
+represent a connected hosted Akatsuki test.
+
+Before cutover, reconcile candidate 17's current catalog and the first committed
+answer with any legacy logs lacking receipts. Retain receipts while retries can
+exist. Current source strings/app IDs are metadata, not proof of a real stream
+sender. The actual hub contract must independently validate the sender and route.
+The remaining mirrors/pairing, done requests/replies, session-completed callers,
+shared-document ordering and old account-unscoped state require acceptance before
+hub activation. Do not replay old `akatsuki_outbox_rm` under a guessed account.
+See Commonplace's `platform/acceptance/ROADMAP-SUGGESTION-READINESS.md` for the gate
+matrix. Restoration stays deferred and hosted rollout/enrollment remain on hold.
