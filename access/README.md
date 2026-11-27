@@ -386,3 +386,35 @@ shared-document ordering and old account-unscoped state require acceptance befor
 hub activation. Do not replay old `akatsuki_outbox_rm` under a guessed account.
 See Commonplace's `platform/acceptance/ROADMAP-SUGGESTION-READINESS.md` for the gate
 matrix. Restoration stays deferred and hosted rollout/enrollment remain on hold.
+
+## G0 task mirror delivery preparation (27 November 2026, Japan)
+
+Follows merged Roadmap #26 and Commonplace #135. Candidate 18 (after 01/03/15)
+atomically saves the exact source pair, task/folder and owner/sequence receipt.
+The per-owner mirror reconciliation gate starts empty/default-deny. It requires
+review of original hub links, including deleted targets; never adopt by title or
+assume the current account owns legacy data. See Commonplace
+[`ROADMAP-MIRROR-READINESS.md`](https://github.com/Celeritas7/Commonplace/blob/main/platform/acceptance/ROADMAP-MIRROR-READINESS.md).
+
+The builder copies `mirror-contract`, `mirror-sync`, `MirrorRecovery` and patches
+only ignored copies of the real hub handler/adapter. Owner/sequence slots save
+before send; lost responses/reloads retry original data. The original account JWT,
+epoch and exact saved bytes are checked before applying/clearing. Current server
+rows preserve newer local edits; confirmed pairs survive reload, retain full JSON
+addresses and cannot resurrect local deletions. Legacy unscoped pending-done,
+outbox and cursor records and offline packs are preserved.
+
+Automatic hub startup remains disabled. Copied task callbacks reject malformed or
+wrong-source deliveries, and defer transient failures. Source-deletion callbacks
+retain the local orphan but defer hub acknowledgement: the reviewed hub source's
+orphan/ack app attribution, `deleted` versus `del` and cross-device ordering need
+joint acceptance before activation. No swallowed orphan failure is treated as
+success. The RPC is owner-authorized storage, not proof of the sender's identity.
+Other hub reply/orphan routes and account-safe consume/ack lifecycle remain gated.
+
+Focused commands: `node --experimental-strip-types --test access/tests/mirror-contract.test.mjs access/tests/suggestion-adapter.test.mjs`;
+then build the fixture and run `node --test access/tests/mirrors.browser.mjs`.
+The existing CI also runs the full contract/browser suite and TypeScript/Vite build.
+Next work: task.done/reply identities, pending-before-send and cursor/view recovery.
+Hosted changes and learner enrollment stay on hold. Restoration remains deferred;
+this is preparation within G0, not a new rollout phase or learner pilot approval.
