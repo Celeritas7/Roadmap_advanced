@@ -1,4 +1,4 @@
-import {assertNoPendingStructure,structureWriteVersion} from './task-write-activity.ts'
+import {assertNoPendingStructure,structureWriteVersion,studyReportVersion} from './task-write-activity.ts'
 import {trackTaskWrite,assertNoPendingReset,assertNoPendingTaskEdit} from './task-write-activity.ts'
 import {supabase} from '../lib/supabase.ts'
 import {dayKey} from '../lib/dailyReset.ts'
@@ -26,12 +26,12 @@ supabase.auth.onAuthStateChange((_event,session)=>{
 window.addEventListener('storage',()=>sessionActions.notify())
 const assertUnlocked=()=>{if(locked)throw Error('Reload to continue with the current account.')}
 export async function fetchSessions(limit=400):Promise<SessionRow[]> {
- assertUnlocked();const revision=structureWriteVersion(),owner=sessionActions.currentOwner()
+ assertUnlocked();const revision=structureWriteVersion(),studyRevision=studyReportVersion(),owner=sessionActions.currentOwner()
  if(!owner)throw Error('Sign in to read study sessions.')
  const {data,error}=await supabase.from('roadmap_study_sessions')
   .select('id,task_id,day_key,source,started_at,completed_at,duration_min,feedback,verification,created_at')
   .eq('user_id',owner).order('day_key',{ascending:false}).limit(limit)
- assertUnlocked();if(revision!==structureWriteVersion())throw Error('Task tree changed while reading sessions; refresh again.');if(owner!==sessionActions.currentOwner())throw Error('Account changed')
+ assertUnlocked();if(studyRevision!==studyReportVersion())throw Error('Study report changed while reading sessions; refresh again.');if(revision!==structureWriteVersion())throw Error('Task tree changed while reading sessions; refresh again.');if(owner!==sessionActions.currentOwner())throw Error('Account changed')
  if(error)throw error
  return (data??[]) as SessionRow[]
 }

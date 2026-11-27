@@ -1,3 +1,5 @@
+import {prepareStudyReports} from './staging/prepare-study-reports.mjs';
+import {prepareStudyCaller} from './staging/prepare-study-caller.mjs';
 import {prepareCompletions} from './staging/prepare-completions.mjs';
 import {prepareMirrors} from './staging/prepare-mirrors.mjs';
 import {prepareSuggestions} from './staging/prepare-suggestions.mjs';
@@ -29,6 +31,7 @@ export async function prepareStaging(sourceRoot=root) {
  await prepareSuggestions(stage,original);
  await prepareMirrors(stage,original);
  await prepareCompletions(stage);
+ await prepareStudyReports(stage);
  await writeFile(join(stage,'src/types.ts'),original['src/types.ts'].replace('suggest(s: {','suggest(s: { madeAt?: string;'));
  await writeFile(join(stage,'src/features/home/NowStrip.tsx'),original['src/features/home/NowStrip.tsx'].replace('.then(() => tick())',".then(() => tick()).catch(e=>useStore.setState({error:e instanceof Error?e.message:'Answer stays saved.'}))"));
  let ordinary=original['src/store/sync.ts'];
@@ -37,6 +40,8 @@ export async function prepareStaging(sourceRoot=root) {
    'export function updateTask(id: string, patch: TaskUpdate): Promise<TaskRow> { return trackTaskWrite(id,()=>updateTaskWrite(id,patch)) }\nasync function updateTaskWrite(id: string, patch: TaskUpdate): Promise<TaskRow> {');
  await writeFile(join(stage,'src/store/sync.ts'),ordinary);
  let store=original['src/store/useStore.ts'];
+ store="import {studyReportVersion} from './task-write-activity.ts'\n"+store.replace('set({ sessions: await sessionSync.fetchSessions() })',
+  'const reportRevision=studyReportVersion();const sessions=await sessionSync.fetchSessions();if(reportRevision===studyReportVersion())set({sessions})');
  const resetStart=store.indexOf('// V2-J: at/after 4 AM'),resetEnd=store.indexOf('// Quick-capture worker',resetStart);
  if(resetStart<0||resetEnd<0)throw Error('Daily reset source changed');
  store="import { runDailyReset } from './daily-reset-sync.ts'\n"+store.slice(0,resetStart)+store.slice(resetEnd);
@@ -156,9 +161,9 @@ ${hook}`);
  store=store.replace('editTaskMetadata,isMetadata,hasMetadata','editTaskMetadata,isMetadata').replace(/import \{ subtreeIds \}[^\n]+\n/,'');
  await writeFile(join(stage,'src/store/useStore.ts'),store);
  let app=original['src/App.tsx'].replace("import { bootHub } from './lib/rmHub.ts'\n",'');
- app="import { CompletionRecovery } from './store/CompletionRecovery.tsx'\nimport { MirrorRecovery } from './store/MirrorRecovery.tsx'\nimport { SuggestionRecovery } from './store/SuggestionRecovery.tsx'\nimport { StructureRecovery } from './store/StructureRecovery.tsx'\nimport { TaskCreationRecovery } from './store/TaskCreationRecovery.tsx'\nimport { DailyLogRecovery } from './store/DailyLogRecovery.tsx'\nimport { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
+ app="import { StudyReportRecovery } from './store/StudyReportRecovery.tsx'\nimport { CompletionRecovery } from './store/CompletionRecovery.tsx'\nimport { MirrorRecovery } from './store/MirrorRecovery.tsx'\nimport { SuggestionRecovery } from './store/SuggestionRecovery.tsx'\nimport { StructureRecovery } from './store/StructureRecovery.tsx'\nimport { TaskCreationRecovery } from './store/TaskCreationRecovery.tsx'\nimport { DailyLogRecovery } from './store/DailyLogRecovery.tsx'\nimport { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
   .replace("    if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)","    // Hub consumption stays off in this isolated fixture preview.")
-  .replace('<Header />','<Header /><CompletionRecovery /><MirrorRecovery /><SuggestionRecovery /><StructureRecovery /><TaskCreationRecovery /><DailyLogRecovery /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
+  .replace('<Header />','<Header /><StudyReportRecovery /><CompletionRecovery /><MirrorRecovery /><SuggestionRecovery /><StructureRecovery /><TaskCreationRecovery /><DailyLogRecovery /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
   .replace("Couldn't save that change — it's been undone.",'{error}');
  await writeFile(join(stage,'src/App.tsx'),app);
 
@@ -276,6 +281,7 @@ ${hook}`);
   if (taskId) void startSession(taskId, launchDay).catch(() => showToast('Study opened; session start is unconfirmed. Use the saved retry in Roadmap.'))`)
   .replace('withHandshake(r.url, taskId)','withHandshake(r.url, taskId, launchDay)');
  await writeFile(join(stage,'src/features/plan/launch.ts'),launch);
+ await prepareStudyCaller(stage);
  let backend=original['src/lib/supabase.ts'];
  backend=backend.slice(0,backend.indexOf('// Akatsuki broadcast overlay:'));
  backend=backend.replace('import.meta.env.VITE_SUPABASE_URL',"'http://127.0.0.1:54321'")

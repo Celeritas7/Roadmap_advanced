@@ -453,3 +453,48 @@ callers, within the existing G0 roadmap.
 Focused checks: `node --experimental-strip-types --test access/tests/completion-contract.test.mjs`,
 then build the fixture and run `node --test access/tests/completions.browser.mjs`.
 Existing CI runs the complete contract/browser suites and TypeScript/Vite build.
+
+## G0 — Study reports and the actual JLPT caller
+
+Follows merged Roadmap #28 and Commonplace #142. Candidate 20 in Commonplace
+prepares `ga_roadmap_receive_study_report(seq)`: the server reads the actual owned
+hub record, requires the reviewed source and original day, and commits a session
+with its replay receipt. Existing app/API history is preserved. The source gate
+starts empty and private. Task checkboxes and unrelated notes are untouched.
+
+`study-report-contract.ts` and `study-report-sync.ts` replace only the copied
+`rmHub.onSession` path. The copied adapter rejects a malformed/unexpected source,
+defers recoverable failure and acknowledges only after the server result reaches
+the store. Recovery stays under its original account and captured JWT; late replies
+cannot replace newer local edits. The preview says **app-reported**, not confirmed:
+the current owner-writable hub does not independently attest the sender.
+
+The actual Japanese caller was reviewed at `9dc3ecf44371d26891ee4e883eada84140fbf3e4`.
+`callers/jlpt/source.json` pins its `js/rmSession.js` snapshot. Its results-screen
+call sites remain the interface contract. `prepare-study-caller.mjs` generates an
+ignored, loopback-only replacement in `.staging/session-fixture/caller-fixture/`.
+It retains `rmDayKey`, `rmInit`, `rmIsLaunched`, `rmComplete` and `rmReturn`, while
+preparing authenticated hub reporting and explicit retry controls. No file in the
+Japanese repository is modified, and this is not a deployed caller migration.
+
+The original three handshake names remain. `rm_owner` and `rm_launch` bind a new
+report to its original owner and request. The start time and day never reset on a
+second read. Only the exact reviewed Japanese app path receives these parameters;
+other links still open. Return links allow only the exact Roadmap Pages path.
+New retries use separate account/launch keys in durable storage. They retain the
+original effect before publication and wait for actual hub delivery before showing
+confirmation. No legacy `rm-handshake`, outbox, notes, progress or packs are cleared.
+
+Production requires reviewed dual-project identities and both auth subscriptions,
+actual hub registration/key agreement, the caller's initialization/recovery UI and
+coordinated removal of the old anonymous/direct RPC. A browser field is not an
+identity-link attestation. The actual caller currently has no deployed hub adapter;
+other study callers remain unverified. Automatic hub startup remains off, hosted
+changes/enrollment stay on hold, and restoration remains deferred.
+
+Tests cover actual copied handler/adapter/caller behavior, original-day completion,
+lost responses, reloads, source rejection, A→B→A, competing edits, safe returns and
+preserved offline bytes. Run the normal contract suite, fixture typecheck/build and
+browser suite. On constrained machines use `--test-concurrency=1` for browser tests.
+Next bounded work: shared hub protocol and account-scoped outbox/check-in/leader
+lifecycle within G0; this preparation is not restricted-sharing approval.
