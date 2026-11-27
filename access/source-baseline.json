@@ -1,5 +1,5 @@
 {
-  "commit": "80d1584b52a37198ad906c46cef864ad295a6cbd",
+  "commit": "35f9cb51eaa3cab32789e5ae59cf380294ff8b91",
   "sha256": {
     "index.html": "548e5bff519262ec75bc84fd03a4eb903a125fa43ba330da81808a685685aa9c",
     "src/App.tsx": "1821ed8bb8b85e6ab41b7dd593193a7aa824687abc51b619d54e65838e65e0a2",
@@ -17,6 +17,9 @@
     "src/types.ts": "9dbe3c502e0c553a6896250dc4d737350c6fe6a19b04fb161c0b062bc3baedc2",
     "src/features/log/TodaysLog.tsx": "4b150b8dbdc74b8365d9aecc647ec5259904c89c71c1ad4e9bd9d98bf33cb3b0",
     "src/features/capture/CaptureSheet.tsx": "940f134c04c58914b74f4522dba9fe4a64b702e928dc6b12e7a04d2bf06c03f2",
-    "src/lib/capture.ts": "86b712543d65b8ed1dabaa8b695d767fccf664416f762439c1fe3bcd2420aafb"
+    "src/lib/capture.ts": "86b712543d65b8ed1dabaa8b695d767fccf664416f762439c1fe3bcd2420aafb",
+    "src/features/inbox/InboxView.tsx": "f9a06106ca7860cad1f12ac6415a7c0af28f64ef6b756fcb8f5d82ec1798d069",
+    "src/features/inbox/parts.tsx": "235af52cd1200b54a5d9fff25d16a3124ceee971f99d434b68bd2fd80c164797",
+    "src/features/tree/Tree.tsx": "260529a952c94205566981c0fa4f7dd15740d627e54cf9123a5d345283a90802"
   }
 }

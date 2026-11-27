@@ -46,9 +46,9 @@ async function fixture(work){
   const result=success(args);return window.mode==='lost'?{error:{code:'504'}}:result;
  };
  supabase.from=()=>{throw Error('Creation must not fall back to direct table writes')};
- window.beginDelete=()=>{
-  supabase.from=()=>({delete(){return this},eq(){return new Promise(resolve=>window.failDelete=()=>resolve({error:{message:'Synthetic delete failure'}}))}});
-  window.deletion=useStore.getState().deleteTask(old.id).catch(e=>e.message);
+ window.beginLegacyToggle=()=>{
+  supabase.from=()=>({update(){return this},eq(){return this},select(){return this},single(){return new Promise(resolve=>window.failToggle=()=>resolve({error:{message:'Synthetic completion failure'}}))}});
+  window.toggleWork=useStore.getState().toggleTask(old.id);
  };
  window.editUnrelated=()=>useStore.setState(s=>({tree:s.tree.map(t=>t.id===old.id?{...t,title:'Keep unrelated edit'}:t)}));
  window.editTarget=()=>{const p=taskCreations.list()[0],item=p.payload.items[0];useStore.setState(s=>({tree:[...s.tree.filter(t=>t.id!==item.id),{...base,...item,kind:'task',title:'Keep newer local title'}]}))};
@@ -82,11 +82,11 @@ test('actual task form retains blur/failure drafts; exact retries preserve tree,
  assert.deepEqual((await page.evaluate(()=>window.calls[0])).args,first.args);assert.equal(await page.evaluate(()=>window.rows.length),3);
  assert.equal(await page.evaluate(()=>window.state().tree.find(t=>t.id===window.calls[0].args.p_payload.items[0].id).title),title);
  assert.ok(await page.evaluate(()=>window.state().tree.some(t=>t.title==='Keep unrelated edit')));assert.equal(await page.evaluate(()=>window.injected),undefined);
- await fill(page,'Wait for older deletion');await page.evaluate(()=>window.beginDelete());await page.waitForFunction(()=>typeof window.failDelete==='function');
+ await fill(page,'Wait for older completion');await page.evaluate(()=>window.beginLegacyToggle());await page.waitForFunction(()=>typeof window.failToggle==='function');
  const before=await page.evaluate(()=>window.calls.length);await page.getByRole('button',{name:'Add task',exact:true}).click();await retry.waitFor();
- assert.equal(await page.evaluate(()=>window.calls.length),before);await page.evaluate(async()=>{window.failDelete();await window.deletion});
+ assert.equal(await page.evaluate(()=>window.calls.length),before);await page.evaluate(async()=>{window.failToggle();await window.toggleWork});
  await retry.click();await page.waitForFunction(()=>window.pending().length===0);await page.getByRole('button',{name:'+ add task',exact:true}).waitFor();
- assert.ok(await page.evaluate(()=>window.state().tree.some(t=>t.title==='Wait for older deletion')));
+ assert.ok(await page.evaluate(()=>window.state().tree.some(t=>t.title==='Wait for older completion')));
  await fill(page,'Overlapping creation');await page.evaluate(()=>window.mode='hold');await page.getByRole('button',{name:'Add task',exact:true}).click();
  await page.waitForFunction(()=>typeof window.finish==='function');await page.evaluate(()=>{window.editTarget();window.finish()});
  await page.waitForFunction(()=>!document.querySelector('[aria-label="New task name"]').disabled||document.querySelector('[aria-label="New task draft"] [role="status"]'));

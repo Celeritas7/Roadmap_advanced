@@ -1,3 +1,4 @@
+import {assertNoPendingStructure} from './task-write-activity.ts'
 import {supabase} from '../lib/supabase.ts'
 import {useStore} from './useStore.ts'
 import {sessionActions} from './studySessions.ts'
@@ -19,6 +20,7 @@ setTaskEditGuard(ids=>{
 })
 function unlocked(){if(locked)throw Error('Reload safely to continue with the current account.')}
 function ready(ids:string[]){
+ assertNoPendingStructure()
  unlocked();if(useStore.getState().loading)throw Error('Wait for current tasks to load.')
  if(ordinaryTasksBusy())throw Error('Wait for the current task change to finish.')
  ids.forEach(assertNoPendingReset)

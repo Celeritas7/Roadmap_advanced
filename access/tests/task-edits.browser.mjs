@@ -10,9 +10,10 @@ test('actual task rename and metadata batch keep drafts, retry atomically and pr
  import {useStore} from '/src/store/useStore.ts';import {TaskEditRecovery} from '/src/store/TaskEditRecovery.tsx';
  import {taskEdits,retryTaskEdits} from '/src/store/task-edit-sync.ts';
  import {dailyResets,runDailyReset} from '/src/store/daily-reset-sync.ts';import {sessionActions} from '/src/store/studySessions.ts';
+ import {structures} from '/src/store/structure-sync.ts';
  import {supabase} from '/src/lib/supabase.ts';await supabase.auth.getSession();
  const id=n=>'d0000000-0000-4000-8000-'+String(n).padStart(12,'0');
- taskEdits.bind(id(1));sessionActions.bind(id(1));dailyResets.bind(id(1));
+ taskEdits.bind(id(1));structures.bind(id(1));sessionActions.bind(id(1));dailyResets.bind(id(1));
  const base={id:id(3),title:'Original task',done:true,kind:'task',tags:['daily-routine'],position:0,expanded:true,parent_id:null,streak:4,streak_day:'2000-01-01',created_at:'2000-01-01T00:00:00Z',updated_at:'2000-01-01T00:00:00Z'};
  const other={...base,id:id(4),title:'Other task',tags:[]};
  const proof={id:id(8),task_id:id(3),verification:'app',feedback:{keep:'proof'}};
@@ -33,7 +34,7 @@ test('actual task rename and metadata batch keep drafts, retry atomically and pr
  supabase.from=()=>{throw Error('Metadata must not fall back to direct table writes')};
  window.batch=()=>useStore.getState().updateTasks([{id:id(3),patch:{tags:['daily-routine','kept']}},{id:id(4),patch:{tags:['kept'],expanded:false}}]).then(()=>'',e=>e.message);
  window.rename=title=>useStore.getState().updateTask(id(3),{title}).then(()=>'',e=>e.message);
- window.beginMove=()=>{supabase.from=()=>({update(){return this},eq(){return this},select(){return this},single(){return new Promise(resolve=>window.failMove=()=>resolve({error:{message:'Synthetic move failure'}}))}});window.moveWork=window.move()};
+ window.beginLegacyToggle=()=>{supabase.from=()=>({update(){return this},eq(){return this},select(){return this},single(){return new Promise(resolve=>window.failToggle=()=>resolve({error:{message:'Synthetic move failure'}}))}});window.toggleWork=useStore.getState().toggleTask(id(4))};
  window.move=()=>useStore.getState().updateTask(id(4),{parent_id:null,position:2}).then(()=>'',e=>e.message);
  window.editOther=()=>useStore.setState(s=>({tree:s.tree.map(t=>t.id===id(4)?{...t,title:'Keep unrelated edit'}:t)}));
  window.editSelected=()=>useStore.setState(s=>({tree:s.tree.map(t=>t.id===id(3)?{...t,title:'Keep newer local edit'}:t)}));
@@ -77,10 +78,10 @@ test('actual task rename and metadata batch keep drafts, retry atomically and pr
   assert.equal(await page.evaluate(()=>window.state().tree[0].title),'Keep newer local edit');assert.equal(await page.evaluate(()=>window.state().tree[0].streak),4);
   assert.deepEqual(await page.evaluate(()=>window.state().sessions),history);
   const callsBeforeMove=await page.evaluate(()=>window.calls.length);
-  await page.evaluate(()=>window.beginMove());await page.waitForFunction(()=>typeof window.failMove==='function');
-  assert.match(await page.evaluate(()=>window.rename('Must wait for move rollback')),/Wait for the current task change/);
+  await page.evaluate(()=>window.beginLegacyToggle());await page.waitForFunction(()=>typeof window.failToggle==='function');
+  assert.match(await page.evaluate(()=>window.rename('Must wait for completion rollback')),/Wait for the current task change/);
   assert.equal(await page.evaluate(()=>window.calls.length),callsBeforeMove);assert.equal(await page.evaluate(()=>window.pending().length),0);
-  await page.evaluate(async()=>{window.failMove();await window.moveWork});
+  await page.evaluate(async()=>{window.failToggle();await window.toggleWork});
   assert.equal(await page.evaluate(()=>window.state().tree[0].title),'Keep newer local edit');
   await page.evaluate(()=>window.mode='stale');assert.match(await page.evaluate(()=>window.rename('Conflicting draft')),/task changed/);
   const conflict=await page.evaluate(()=>window.pending()[0]);await retry.click();

@@ -22,6 +22,8 @@ test('isolated staging pins inputs and preserves original app files and authenti
   const log=await readFile(join(stage,'src/features/log/TodaysLog.tsx'),'utf8');
   assert.match(log,/DailyLogForm/);assert.doesNotMatch(log,/onBlur=|Number.parseInt/);
   assert.match(store,/await editTaskMetadata/);assert.match(store,/runLegacyTaskMutation/);
+  assert.match(store,/queueTaskDeletion/);assert.match(store,/reorderTaskStructure/);assert.doesNotMatch(store,/await sync.deleteTask|await sync.reorderTasks/);
+  const inbox=await readFile(join(stage,'src/features/inbox/InboxView.tsx'),'utf8');assert.match(inbox,/NewFolderMoveForm/);assert.doesNotMatch(inbox,/await addFolder|moveToNew/);
   const taskRow=await readFile(join(stage,'src/features/tree/TaskRow.tsx'),'utf8');
   assert.match(taskRow,/await updateTask/);assert.doesNotMatch(taskRow,/onBlur=\{cancelEdit\}/);
   assert.match(store,/setInterval\(\(\) => void runDailyReset\(\), 60_000\)/);

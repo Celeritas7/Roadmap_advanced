@@ -1,3 +1,4 @@
+import {assertNoPendingStructure,structureWriteVersion} from './task-write-activity.ts'
 import {createComparisonImports,type ImportIntent} from './comparison-import-contract.ts'
 import {supabase} from '../lib/supabase.ts'
 import type {Comparison,ComparisonItem} from '../types.ts'
@@ -23,13 +24,13 @@ export const normalizeItems=(rows:Record<string,unknown>[])=>rows.map(r=>({...r,
 export async function fetchComparisons(){
  unlocked();const actor=comparisonEdits.context();comparisonEdits.assertContext(actor)
  if(comparisonEdits.busy()||comparisonImports.busy())throw Error('Wait for the current comparison save before refreshing.')
- const current=++generation
+ const current=++generation,revision=structureWriteVersion()
  // One PostgREST statement keeps comparisons and products in the same snapshot.
  const {data,error}=await supabase.from('roadmap_comparisons')
   .select('*,items:roadmap_comparison_items!roadmap_comparison_items_comparison_id_fkey(*)')
   .eq('user_id',actor.owner!).order('updated_at',{ascending:false})
  unlocked();comparisonEdits.assertContext(actor)
- if(current!==generation||comparisonEdits.busy()||comparisonImports.busy())throw Error('A newer comparison request is in progress.')
+ if(revision!==structureWriteVersion()||current!==generation||comparisonEdits.busy()||comparisonImports.busy())throw Error('A newer comparison request is in progress.')
  if(error)throw error
  if(!Array.isArray(data))throw Error('Comparison refresh was not confirmed.')
  const snapshots=data.map(row=>comparisonSnapshot(row,row.items,actor.owner!))
@@ -37,12 +38,12 @@ export async function fetchComparisons(){
   items:normalizeItems(snapshots.flatMap(s=>s.items))}
 }
 export async function retryComparison(p:ComparisonEdit):Promise<ConfirmedComparison>{
- unlocked();if(comparisonImports.list().some(i=>i.comparisonId===p.comparisonId))throw Error('Review the pending import first.')
+ unlocked();assertNoPendingStructure();if(comparisonImports.list().some(i=>i.comparisonId===p.comparisonId))throw Error('Review the pending import first.')
  generation++
  try{return await comparisonEdits.run(p)}finally{generation++}
 }
 export async function editComparison(comparison:Comparison,patch:ComparisonPatch){
- unlocked();if(comparisonImports.list().some(i=>i.comparisonId===comparison.id))throw Error('Review the pending import first.')
+ unlocked();assertNoPendingStructure();if(comparisonImports.list().some(i=>i.comparisonId===comparison.id))throw Error('Review the pending import first.')
  return retryComparison(comparisonEdits.prepare(comparison.id,comparison.updated_at,patch))
 }
 
@@ -53,7 +54,7 @@ export async function previewComparisonImport(id:string){
  return result
 }
 export async function retryComparisonImport(p:ImportIntent){
- unlocked();if(comparisonEdits.list().some(i=>i.comparisonId===p.comparisonId))throw Error('Review the pending preference change first.')
+ unlocked();assertNoPendingStructure();if(comparisonEdits.list().some(i=>i.comparisonId===p.comparisonId))throw Error('Review the pending preference change first.')
  generation++
  try{return await comparisonImports.run(p)}finally{generation++}
 }
