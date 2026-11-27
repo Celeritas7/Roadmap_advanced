@@ -14,10 +14,11 @@ let editGuard:(ids?:string[])=>void=()=>{},legacyActive=0
 export const setTaskEditGuard=(guard:(ids?:string[])=>void)=>{editGuard=guard}
 export const assertNoPendingTaskEdit=(ids?:string[])=>editGuard(ids)
 export function taskEditPending(id:string){try{editGuard([id]);return false}catch{return true}}
-export const ordinaryTasksBusy=()=>structuring>0||creating>0||legacyActive>0||[...active.values()].some(n=>n>0)
+export const ordinaryTasksBusy=()=>mirroring>0||structuring>0||creating>0||legacyActive>0||[...active.values()].some(n=>n>0)
 // Remaining legacy writes (including non-daily completion) can roll back the
 // tree. Keep acknowledged writes out of their full recovery lifetime.
 export async function runLegacyTaskMutation<T>(write:()=>Promise<T>):Promise<T>{
+ if(mirroring)throw Error('Wait for the current mirror delivery.')
  structureGuard();creationGuard();editGuard();legacyActive++
  try{return await write()}finally{legacyActive--}
 }
@@ -41,3 +42,10 @@ export async function runStructureMutation<T>(write:()=>Promise<T>):Promise<T>{
 }
 
 export const structureWriteVersion=()=>structureRevision
+
+let mirroring=0
+export async function runMirrorMutation<T>(write:()=>Promise<T>):Promise<T>{
+ if(ordinaryTasksBusy())throw Error('Wait for the current task change.')
+ mirroring++
+ try{return await write()}finally{mirroring--}
+}
