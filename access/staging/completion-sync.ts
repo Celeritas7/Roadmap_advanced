@@ -45,7 +45,7 @@ export function retryCompletion(p:CompletionIntent,publish=true):Promise<void>{
    })
    if(!applied)throw Error('Reply saved on the server. Newer local work was kept; reload tasks before retrying.')
    ready();completions.assertContext(result.context);applyView!(result);completions.acknowledge(result)
-   setCompletionMessage(result.state==='unknown'?'Source task is unavailable. Its mirror was retained as orphaned.':result.state==='stale'?'Source task changed. Check it in Weekly Focus.':result.state==='superseded'?'Newer source changes were preserved.':'Completion reply confirmed.')
+   setCompletionMessage(result.state==='unknown'?'Source task is unavailable. Its mirror was retained as orphaned.':result.state==='stale'?'Source task changed. Check it in Weekly Focus.':result.state==='superseded'?'Newer source changes were preserved.':result.state==='removed'?'Original task was removed. Its study history was retained.':'Completion reply confirmed.')
   })
  })()
  applying={...actor,requestId:p.requestId,publish,promise:work};void work.catch(e=>setCompletionMessage(e instanceof Error?e.message:'Original request stays saved.')).finally(()=>{if(applying?.promise===work)applying=null;completions.notify()}).catch(()=>{});return work
