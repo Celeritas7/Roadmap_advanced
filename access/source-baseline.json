@@ -1,5 +1,5 @@
 {
-  "commit": "35f9cb51eaa3cab32789e5ae59cf380294ff8b91",
+  "commit": "d3fa0faa6779d16514a08b516aa6cec4db5462b9",
   "sha256": {
     "index.html": "548e5bff519262ec75bc84fd03a4eb903a125fa43ba330da81808a685685aa9c",
     "src/App.tsx": "1821ed8bb8b85e6ab41b7dd593193a7aa824687abc51b619d54e65838e65e0a2",
@@ -20,6 +20,11 @@
     "src/lib/capture.ts": "86b712543d65b8ed1dabaa8b695d767fccf664416f762439c1fe3bcd2420aafb",
     "src/features/inbox/InboxView.tsx": "f9a06106ca7860cad1f12ac6415a7c0af28f64ef6b756fcb8f5d82ec1798d069",
     "src/features/inbox/parts.tsx": "235af52cd1200b54a5d9fff25d16a3124ceee971f99d434b68bd2fd80c164797",
-    "src/features/tree/Tree.tsx": "260529a952c94205566981c0fa4f7dd15740d627e54cf9123a5d345283a90802"
+    "src/features/tree/Tree.tsx": "260529a952c94205566981c0fa4f7dd15740d627e54cf9123a5d345283a90802",
+    "src/lib/suggester.ts": "e76c3c2d27b749c1109f55d9fe5fa377e225607248c484d2200e22fe9eaac008",
+    "src/lib/rmHub.ts": "e600d9883f9ef4c9ec76b7ce6cc7f182d8ee2f82d88f5ed851dbddbb3dadc9c4",
+    "public/akatsuki/rm-adapter.js": "ebe3a2fae5903401a07e1b1fc33d7a609b940997142871a7e0bafb170f0b2805",
+    "public/akatsuki/akatsuki-client.js": "a4bf06c7f9a3af335cf3e738569259be6e1c28b3c34ef1f8a78263ffe47decbb",
+    "src/features/home/NowStrip.tsx": "913961d8d3e36828e7c5a3ffd95e4ad1acd6ce8e2bf58b879b2f71e8f6c1d820"
   }
 }

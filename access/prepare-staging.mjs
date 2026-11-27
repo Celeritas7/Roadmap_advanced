@@ -1,3 +1,4 @@
+import {prepareSuggestions} from './staging/prepare-suggestions.mjs';
 import {readFile,writeFile,cp,mkdir,lstat} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -23,6 +24,9 @@ export async function prepareStaging(sourceRoot=root) {
   await cp(join(sourceRoot,file),join(stage,file),{recursive:true});
  for(const file of ['studySessions.ts','session-contract.ts','SessionRecovery.tsx','comparison-contract.ts','compareSync.ts','ComparisonRecovery.tsx','comparison-import-contract.ts','ComparisonImport.tsx','daily-reset-contract.ts','daily-reset-sync.ts','DailyResetRecovery.tsx','task-write-activity.ts','task-edit-contract.ts','task-edit-sync.ts','TaskEditRecovery.tsx','daily-log-contract.ts','daily-log-sync.ts','DailyLogRecovery.tsx','DailyLogForm.tsx','task-creation-contract.ts','task-creation-sync.ts','TaskCreationForm.tsx','TaskCreationRecovery.tsx','structure-contract.ts','structure-sync.ts','StructureRecovery.tsx','NewFolderMoveForm.tsx'])
   await cp(new URL('./staging/'+file,import.meta.url),join(stage,'src/store',file));
+ await prepareSuggestions(stage,original);
+ await writeFile(join(stage,'src/types.ts'),original['src/types.ts'].replace('suggest(s: {','suggest(s: { madeAt?: string;'));
+ await writeFile(join(stage,'src/features/home/NowStrip.tsx'),original['src/features/home/NowStrip.tsx'].replace('.then(() => tick())',".then(() => tick()).catch(e=>useStore.setState({error:e instanceof Error?e.message:'Answer stays saved.'}))"));
  let ordinary=original['src/store/sync.ts'];
  ordinary="import { trackTaskWrite } from './task-write-activity.ts'\n"+ordinary
   .replace('export async function updateTask(id: string, patch: TaskUpdate): Promise<TaskRow> {',
@@ -148,9 +152,9 @@ ${hook}`);
  store=store.replace('editTaskMetadata,isMetadata,hasMetadata','editTaskMetadata,isMetadata').replace(/import \{ subtreeIds \}[^\n]+\n/,'');
  await writeFile(join(stage,'src/store/useStore.ts'),store);
  let app=original['src/App.tsx'].replace("import { bootHub } from './lib/rmHub.ts'\n",'');
- app="import { StructureRecovery } from './store/StructureRecovery.tsx'\nimport { TaskCreationRecovery } from './store/TaskCreationRecovery.tsx'\nimport { DailyLogRecovery } from './store/DailyLogRecovery.tsx'\nimport { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
+ app="import { SuggestionRecovery } from './store/SuggestionRecovery.tsx'\nimport { StructureRecovery } from './store/StructureRecovery.tsx'\nimport { TaskCreationRecovery } from './store/TaskCreationRecovery.tsx'\nimport { DailyLogRecovery } from './store/DailyLogRecovery.tsx'\nimport { TaskEditRecovery } from './store/TaskEditRecovery.tsx'\nimport { DailyResetRecovery } from './store/DailyResetRecovery.tsx'\nimport { ComparisonImport } from './store/ComparisonImport.tsx'\nimport { ComparisonRecovery } from './store/ComparisonRecovery.tsx'\nimport { SessionRecovery } from './store/SessionRecovery.tsx'\n"+app
   .replace("    if (auth === 'signed-in' && !loading && !error) void bootHub(useStore)","    // Hub consumption stays off in this isolated fixture preview.")
-  .replace('<Header />','<Header /><StructureRecovery /><TaskCreationRecovery /><DailyLogRecovery /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
+  .replace('<Header />','<Header /><SuggestionRecovery /><StructureRecovery /><TaskCreationRecovery /><DailyLogRecovery /><TaskEditRecovery /><DailyResetRecovery /><SessionRecovery /><ComparisonRecovery /><ComparisonImport />')
   .replace("Couldn't save that change — it's been undone.",'{error}');
  await writeFile(join(stage,'src/App.tsx'),app);
 
