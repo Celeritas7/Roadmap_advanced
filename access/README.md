@@ -418,3 +418,38 @@ The existing CI also runs the full contract/browser suite and TypeScript/Vite bu
 Next work: task.done/reply identities, pending-before-send and cursor/view recovery.
 Hosted changes and learner enrollment stay on hold. Restoration remains deferred;
 this is preparation within G0, not a new rollout phase or learner pilot approval.
+
+## G0 completion requests and reply recovery (27 November 2026, Japan)
+
+Follows merged Roadmap #27 and Commonplace #138. Candidate 19 requires
+01/03/09/15/18 and a reviewed owner-scoped hub catalog. Its completion access gate
+starts empty. See Commonplace
+[`ROADMAP-COMPLETION-READINESS.md`](https://github.com/Celeritas7/Commonplace/blob/main/platform/acceptance/ROADMAP-COMPLETION-READINESS.md)
+for the acceptance boundary and remaining activation gates.
+
+The isolated handler saves `rm-completion-v1:<owner>:<task>` before any request.
+The server prepares the original effect and durable aliases before publication,
+then reads replies from the stored owner's actual hub request. No reply/cursor or
+checkbox value is supplied by the browser. Request UUIDs permit a later deliberate
+completion after closure; retries keep the original key, timestamp and full address.
+Lost responses first reconcile the saved request, avoiding a second publish once
+it reached the hub. Task/suggestion updates and reply receipts are atomic and use
+the same ordering as mirror updates.
+
+The recovery panel checks known requests in reply order and keeps a checkbox pending
+until confirmation. A single shared local reply cursor is no longer used by this
+prepared path. Account epochs, captured JWTs, saved-byte checks and target snapshots
+preserve original-account recovery and newer local edits. Contract blocks remain
+visible, and checking replies never publishes unsent requests. Legacy unscoped
+pending/cursor/outbox values and offline packs are neither replayed nor cleared.
+
+Only access/ and ignored loopback copies change. Automatic hub boot stays disabled.
+R022's daily-key description, actual sender/writer authority and target behavior need
+joint acceptance before production use; local receipt checks do not attest an
+independent WF author or verified study completion. Hosted changes/enrollment remain
+on hold and restoration remains deferred. Next: session.completed and actual study
+callers, within the existing G0 roadmap.
+
+Focused checks: `node --experimental-strip-types --test access/tests/completion-contract.test.mjs`,
+then build the fixture and run `node --test access/tests/completions.browser.mjs`.
+Existing CI runs the complete contract/browser suites and TypeScript/Vite build.
