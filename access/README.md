@@ -498,3 +498,55 @@ preserved offline bytes. Run the normal contract suite, fixture typecheck/build 
 browser suite. On constrained machines use `--test-concurrency=1` for browser tests.
 Next bounded work: shared hub protocol and account-scoped outbox/check-in/leader
 lifecycle within G0; this preparation is not restricted-sharing approval.
+
+## G0 — Account-safe hub queue and background lifecycle
+
+Follows merged Roadmap #29 (`2312d84`) and Commonplace #145 (`01a163a`). The
+builder now patches the copied classic Akatsuki client and actual `rmHub` boot
+with captured-account transport, per-owner IndexedDB queues and cancellable
+owner-scoped Web Locks leadership. Root runtime and deployment remain unchanged;
+the fixture still never starts hub work automatically. No new SQL is proposed.
+
+Every queued request keeps its explicit key, full original address/payload/clock
+and owner before send. Transactions prevent one tab from replacing another's
+queue. Retry first reconciles the actual owner-scoped hub row, including lost
+responses. Empty/queued responses do not confirm publication. Permanent contract
+errors stay visible and stop later effects. Sent receipts are retained: hub
+receipt is distinct from the target app applying a task or study report.
+
+`Hub queue recovery` provides per-account status, Retry and Refresh. Limits are
+1,000 retained records and 8 MiB UTF-8 per owner/app, 48 KiB per effect and 256
+bytes per request key. Full/damaged/unavailable storage stops new sends; no
+automatic deletion or legacy adoption occurs. Review retention and erasure
+before activation. The unscoped `akatsuki_outbox_rm`, check-ins, notes, cursors,
+personal Auth storage and existing offline packs are neither read nor cleared.
+
+Check-in/device/place/stuck/stale-day preferences use new account-specific keys.
+Changing account stops the old scope permanently, invalidates lazy RPC/query
+builders and rejects stale callbacks before ack. Pagehide and explicit stop clean
+up timers/listeners; waiting leader locks abort, held locks release after the
+current tick settles. Polling runs only online/foreground and never overlaps.
+No Web Locks means background sending is paused with an explanatory status.
+The broader staged app still requires a safe reload after switching accounts.
+
+The explicit staging boot uses the prepared handlers; shared-document writers,
+tag guessing/corrections, banner/reminder startup and legacy suggestion generation
+remain gated. This is not a silent cutover of every hub writer. Existing
+suggestion/completion/study retry ledgers retain their independent contracts.
+Server RLS, cross-device idempotency, dual-project identity and independent sender
+authority are not supplied by browser guards. Browser storage is not encrypted
+and remains accessible to other same-origin code.
+
+Run `node --test access/tests/*.test.mjs`, `node access/prepare-staging.mjs --fixture`,
+the fixture TypeScript/Vite checks, then `node --test --test-concurrency=1 access/tests/*.browser.mjs`.
+New tests exercise real IndexedDB/Web Locks, concurrent tabs, durable conflicts,
+lost response/reload, original JWTs, A→B→A, late consume/ack, real copied boot and
+check-in helpers, size/count limits, damaged rows and retained offline bytes.
+They use synthetic loopback transport; hosted and physical-device acceptance
+remain open. See Commonplace's
+[`ROADMAP-HUB-ACCOUNT-READINESS.md`](https://github.com/Celeritas7/Commonplace/blob/main/platform/acceptance/ROADMAP-HUB-ACCOUNT-READINESS.md).
+
+Next: shared hub protocol acceptance (link/orphan acknowledgements, attribution,
+sender authority and remaining document writers), then coordinated caller cutover
+and the other G0 gates. Hosted changes/enrollment remain on hold and restoration
+remains deferred at its existing checkpoint.

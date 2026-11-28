@@ -30,6 +30,11 @@ test('isolated staging pins inputs and preserves original app files and authenti
   const auth=await readFile(join(stage,'src/lib/supabase.ts'),'utf8');
   assert.match(auth,/127\.0\.0\.1:54321/);assert.match(auth,/rm_session_fixture_auth/);assert.doesNotMatch(auth,/import\.meta\.env\.VITE_SUPABASE|AkatsukiBroadcast/);
   assert.doesNotMatch(await readFile(join(stage,'index.html'),'utf8'),/<script src="(?:https:|akatsuki)/);
+  const hub=await readFile(join(stage,'src/lib/rmHub.ts'),'utf8'),client=await readFile(join(stage,'public/akatsuki/akatsuki-client.js'),'utf8');
+  assert.match(hub,/preparedHubClient/);assert.match(hub,/scope.cleanup/);assert.doesNotMatch(hub,/startTaskBroadcasts|window.AkatsukiBanner|rm-ak-leader|writeGuesses/);
+  assert.match(client,/account.outbox.publish/);assert.match(client,/scope.assert\(\);assertLease\(\)/);assert.doesNotMatch(client,/localStorage|readBox|writeBox|dropped \(contract\)|window.addEventListener/);
+  assert.doesNotMatch(await readFile(join(stage,'src/App.tsx'),'utf8'),/void bootHub/);
+  assert.equal(await readFile(join(temp,'public/akatsuki/akatsuki-client.js'),'utf8'),await readFile(join(root,'public/akatsuki/akatsuki-client.js'),'utf8'));
   const launch=await readFile(join(stage,'src/features/plan/launch.ts'),'utf8');
   assert.match(launch,/startSession\(taskId, launchDay\)/);assert.match(launch,/withHandshake\(r.url, taskId, launchDay\)/);
   const deploy=await readFile(join(root,'.github/workflows/deploy.yml'),'utf8');

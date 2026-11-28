@@ -1,3 +1,4 @@
+import {prepareHubLifecycle} from './staging/prepare-hub-lifecycle.mjs';
 import {prepareStudyReports} from './staging/prepare-study-reports.mjs';
 import {prepareStudyCaller} from './staging/prepare-study-caller.mjs';
 import {prepareCompletions} from './staging/prepare-completions.mjs';
@@ -291,6 +292,7 @@ ${hook}`);
  let page=original['index.html'].replace(/\s*<script src="(?:https:\/\/celeritas7.github.io\/Akatsuki\/|akatsuki\/)[^"]+"><\/script>/g,'');
  page=page.replace('<body>','<body><p role="status" style="padding:12px;background:#fff3cd">Synthetic session preview. No hosted cutover approved.</p>');
  await writeFile(join(stage,'index.html'),page);
+ await prepareHubLifecycle(stage);
  await writeFile(join(stage,'SESSION-STAGING.json'),JSON.stringify({source:baseline.commit,synthetic:true,deploy:false},null,2)+'\n');
  return stage;
 }
