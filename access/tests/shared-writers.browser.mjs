@@ -29,7 +29,7 @@ async function fixture(work){const path=root+'shared-writer-test.html';await wri
  supabase.rpc=(name,args)=>{const q={setHeader(){return q},abortSignal(){return q},then(yes,no){return respond(name,args).then(yes,no)}};return q};
  window.writer=()=>preparedHubClient().__hubAccount.shared;window.makeHub=()=>window.hub=window.Akatsuki(preparedHubClient(),'rm');window.makeHub();
  window.prepare=async()=>{const t=targets[window.kind],s=await window.hub.reviewShared(t);return window.hub.prepareShared(s,changes[window.kind])};
- window.pending=()=>window.writer().list();window.history=()=>window.writer().history();
+ window.pending=()=>window.writer().list();window.savedHistory=()=>window.writer().history();
  window.switchABA=()=>{hubAccounts.bind(window.B);hubAccounts.bind(window.A);window.makeHub()};
  const nativeSet=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){
   if(k.startsWith('rm-shared-write-v1:')){const slot=JSON.parse(v);if(slot.active===null&&slot.history.at(-1)?.resolution==='saved'&&!document.querySelector('[aria-label="Latest shared value"]')?.textContent.includes('Later shared value'))throw Error('Recovery cleared before latest value rendered')}
@@ -40,21 +40,21 @@ async function fixture(work){const path=root+'shared-writer-test.html';await wri
  </script>`);let server,browser;try{
   server=await createServer({root,configFile:root+'vite.config.ts',server:{host:'127.0.0.1',port:0}});await server.listen();browser=await chromium.launch({headless:true,...(process.env.ROADMAP_TEST_CHROMIUM?{executablePath:process.env.ROADMAP_TEST_CHROMIUM}:{})});
   const context=await browser.newContext(),errors=[],url='http://127.0.0.1:'+server.httpServer.address().port+'/shared-writer-test.html';await context.route('http://127.0.0.1:54321/**',r=>r.fulfill({status:200,contentType:'application/json',body:'[]'}));
-  async function newPage(){const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(url);await page.waitForFunction(()=>window.ready);return page}
+  async function newPage(){const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>{window.addEventListener('error',e=>window.fixtureError=e.message);window.addEventListener('unhandledrejection',e=>window.fixtureError=String(e.reason))});await page.goto(url);await page.waitForFunction(()=>window.ready||window.fixtureError);assert.equal(await page.evaluate(()=>window.fixtureError),undefined,errors.join(' | '));return page}
   await work(await newPage(),newPage);assert.deepEqual(errors,[]);
  }finally{await browser?.close();await server?.close();await rm(path,{force:true})}}
 for(const kind of ['document','place'])test(kind+': copied hub retains lost save across reload and renders current value before clearing recovery',async()=>fixture(async page=>{
  await page.evaluate(kind=>window.kind=kind,kind);await page.evaluate(()=>window.prepare());await page.evaluate(()=>window.mode='lost');await page.getByRole('button',{name:'Retry original shared draft',exact:true}).click();await page.getByText(/Shared save was not confirmed/).waitFor();
  assert.equal((await page.evaluate(()=>window.pending())).length,1);await page.evaluate(()=>window.newer('Later shared value'));await page.reload();await page.waitForFunction(()=>window.ready);await page.evaluate(kind=>window.kind=kind,kind);
  await page.getByRole('button',{name:'Retry original shared draft',exact:true}).click();await page.waitForFunction(()=>window.pending().length===0);assert.match(await page.getByLabel('Latest shared value',{exact:true}).textContent(),/Later shared value/);
- assert.equal((await page.evaluate(()=>window.history()))[0].resolution,'saved');assert.equal(await page.evaluate(()=>localStorage.getItem('offline-pack')),'keep');assert.equal(await page.evaluate(()=>localStorage.getItem('notes')),'keep notes');
+ assert.equal((await page.evaluate(()=>window.savedHistory()))[0].resolution,'saved');assert.equal(await page.evaluate(()=>localStorage.getItem('offline-pack')),'keep');assert.equal(await page.evaluate(()=>localStorage.getItem('notes')),'keep notes');
  if(kind==='place')assert.match(await page.getByLabel('Latest shared value',{exact:true}).textContent(),/2026-11-28T01:00:00Z/);
 }));
 test('shared conflict compares both values; reviewed rebase cannot overwrite a later edit and keeping current preserves draft history',async()=>fixture(async page=>{
  const original=await page.evaluate(()=>window.prepare());await page.evaluate(()=>window.newer('Someone else'));await page.getByRole('button',{name:'Retry original shared draft',exact:true}).click();await page.getByText(/A newer shared value was kept/).waitFor();
  assert.match(await page.getByLabel('Your saved draft').textContent(),/My original draft/);await page.evaluate(()=>window.newer('Later shared value'));await page.getByRole('button',{name:'Save draft against reviewed version',exact:true}).click();await page.getByText(/A newer shared value was kept/).waitFor();
  const pending=await page.evaluate(()=>window.pending());assert.equal(pending.length,1);assert.notEqual(pending[0].requestId,original.requestId);await page.getByRole('button',{name:'Keep latest value',exact:true}).click();await page.waitForFunction(()=>window.pending().length===0);
- assert.deepEqual((await page.evaluate(()=>window.history())).map(h=>h.resolution),['rebased','kept-current']);assert.equal((await page.evaluate(()=>window.history()))[0].intent.requestId,original.requestId);
+ assert.deepEqual((await page.evaluate(()=>window.savedHistory())).map(h=>h.resolution),['rebased','kept-current']);assert.equal((await page.evaluate(()=>window.savedHistory()))[0].intent.requestId,original.requestId);
 }));
 test('delayed A–B–A and malformed shared replies retain the original recovery without showing stale account data',async()=>fixture(async page=>{
  await page.evaluate(()=>window.prepare());await page.evaluate(()=>window.mode='hold');await page.getByRole('button',{name:'Retry original shared draft',exact:true}).click();await page.waitForFunction(()=>!!window.finish);
