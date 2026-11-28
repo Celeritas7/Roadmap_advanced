@@ -38,11 +38,14 @@ export function createStudyCaller({client,storage,clock=()=>Date.now(),notify=()
   const check=()=>{current(a);if(storage.getItem(key(p))!==raw)throw Error('Newer study report kept.');};
   const {data,error}=await client.auth.getSession();check();if(error||data.session?.user?.id!==a.owner||!data.session.access_token)throw Error('Sign in to the original hub account.');
   const token=data.session.access_token;
-  const reply=await client.from('akatsuki_requests').select('seq,user_id,from_app,to_app,kind,src_addr,payload,idempotency_key,status').eq('user_id',a.owner).eq('idempotency_key',p.effect.idempotency_key).maybeSingle().setHeader('Authorization','Bearer '+token);check();
+  const reply=await client.from('akatsuki_requests').select('seq,user_id,from_app,to_app,kind,src_addr,src_clock,payload,idempotency_key,status').eq('user_id',a.owner).eq('idempotency_key',p.effect.idempotency_key).maybeSingle().setHeader('Authorization','Bearer '+token);check();
   if(reply.error)throw Error('Report status unavailable. Original retry remains saved.');
-  if(reply.data){const r=reply.data;if(r.user_id!==a.owner||!Number.isSafeInteger(r.seq)||r.seq<1||!exact({...p.effect,src_clock:undefined},{...r,user_id:undefined,seq:undefined,status:undefined,src_clock:undefined}))throw Error('Stored hub report differs. Review required.');
-   if(r.status==='delivered'){save({...p,confirmed:true});notify('Study report confirmed by Roadmap.');return true}
-   if(r.status!=='pending')throw Error('Hub report needs review ('+r.status+').');notify('Sent to Roadmap; confirmation is pending.');return false;
+  if(reply.data){const r=reply.data;if(r.user_id!==a.owner||!Number.isSafeInteger(r.seq)||r.seq<1||!exact(p.effect,Object.fromEntries(Object.entries(r).filter(([k])=>!['user_id','seq','status'].includes(k)))))throw Error('Stored hub report differs. Review required.');
+   const checked=await client.rpc('ga_roadmap_consumer_status',{p_seq:r.seq}).setHeader('Authorization','Bearer '+token);check();
+   const status=checked.data;
+   if(checked.error||!object(status)||status.seq!==r.seq||status.kind!=='session.completed'||!['pending','delivered'].includes(status.status)||status.status==='delivered'&&(!['reported','preserved','superseded','removed'].includes(status.outcome)||typeof status.replayed!=='boolean'))throw Error('Roadmap acknowledgement is not confirmed. Original study report remains saved.');
+   if(status.status==='delivered'){save({...p,confirmed:true});notify('Study report confirmed by Roadmap.');return true}
+   if(r.status!=='pending'&&r.status!=='delivered')throw Error('Hub report needs review ('+r.status+').');notify('Sent to Roadmap; confirmation is pending.');return false;
   }
   const sent=await client.rpc('akatsuki_publish',{p:p.effect}).setHeader('Authorization','Bearer '+token);check();
   if(sent.error){if(/^AK1\d\d$/.test(sent.error.code)||sent.error.code==='AK201')save({...p,blocked:sent.error.code});throw Error('Study publication was not confirmed'+(sent.error.code?' ('+sent.error.code+')':'')+'.')}

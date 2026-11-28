@@ -7,7 +7,7 @@ function setup(storage=memory()){
  const request=fn=>({setHeader:(k,v)=>{s.calls.push({header:[k,v]});return fn()}});
  const client={auth:{getSession:async()=>({data:{session:{user:{id:s.owner},access_token:'synthetic-'+s.owner}},error:null})},
   from:()=>{let key;const q={select:()=>q,eq:(k,v)=>{if(k==='idempotency_key')key=v;return q},maybeSingle:()=>request(async()=>({data:s.rows.get(key)??null,error:null}))};return q},
-  rpc:(name,args)=>request(async()=>{s.calls.push({name,args:structuredClone(args)});if(s.mode==='contract')return {error:{code:'AK103'}};
+  rpc:(name,args)=>request(async()=>{s.calls.push({name,args:structuredClone(args)});if(name==='ga_roadmap_consumer_status'){const row=[...s.rows.values()].find(r=>r.seq===args.p_seq);if(s.mode==='hold-status')await new Promise(resolve=>s.finishStatus=resolve);return s.mode==='status-fail'?{error:{code:'40001'}}:{data:{seq:args.p_seq,kind:'session.completed',status:row?.status??'pending',outcome:'reported',replayed:true}}}if(s.mode==='contract')return {error:{code:'AK103'}};
    s.rows.set(args.p.idempotency_key,{...args.p,user_id:s.owner,seq:20,status:'pending'});if(s.mode==='hold')return new Promise(resolve=>s.finish=()=>resolve({data:{seq:20,status:'pending'}}));return s.mode==='lost'?{error:{code:'504'}}:{data:{seq:20,status:s.mode==='queued'?'queued':'pending'}}})};
  s.caller=createStudyCaller({client,storage,clock:()=>s.time,notify:m=>s.message=m});s.caller.bind({owner:id(1),ownUser:id(2)});return s;
 }
@@ -39,4 +39,13 @@ test('missing day, duplicate parameters, changed launch, foreign task and quota 
  const s=setup();for(const raw of [url().replace('rm_day=2026-11-26','rm_day='),url().replace('#keep','&rm_day=2026-11-27#keep')])assert.throws(()=>s.caller.init(raw));
  s.caller.init(url());assert.throws(()=>s.caller.init(url().replace('2026-11-26','2026-11-27')),/changed/);assert.equal(await s.caller.complete({feedback:{mode:'goi'}}),false);s.caller.init(url());await assert.rejects(()=>s.caller.complete({taskId:id(9),feedback:{mode:'goi'}}),/original/);
  s.storage.setItem=()=>{throw Error('Quota')};await assert.rejects(()=>s.caller.complete({feedback:{mode:'goi'}}),/Quota/);assert.equal(s.calls.length,0);
+});
+
+test('mutable delivered status alone, altered clocks and late private acknowledgement responses cannot confirm a report',async()=>{
+ const s=setup();s.caller.init(url());await s.caller.complete({feedback:{mode:'goi'}});const p=s.caller.list()[0],row=s.rows.get(p.effect.idempotency_key);row.status='delivered';s.mode='status-fail';
+ await assert.rejects(()=>s.caller.retry(p),/acknowledgement is not confirmed/);assert.equal(s.caller.list().length,1);
+ s.mode='ok';row.src_clock='changed';await assert.rejects(()=>s.caller.retry(p),/differs/);assert.equal(s.caller.list().length,1);
+ row.src_clock=null;s.mode='hold-status';const flight=s.caller.retry(p);while(!s.finishStatus)await new Promise(r=>setTimeout(r,0));
+ s.caller.bind({owner:id(7),ownUser:id(8)});s.caller.bind({owner:id(1),ownUser:id(2)});s.finishStatus();await assert.rejects(()=>flight,/Account changed/);assert.equal(s.caller.list().length,1);
+ assert.ok(s.calls.filter(c=>c.header).every(c=>c.header[1]==='Bearer synthetic-'+id(1)));
 });
