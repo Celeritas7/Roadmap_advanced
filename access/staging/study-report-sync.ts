@@ -1,3 +1,4 @@
+import {flushSync} from 'react-dom'
 import {accountRpc} from './account-rpc.ts'
 import {supabase} from '../lib/supabase.ts'
 import {useStore} from './useStore.ts'
@@ -23,12 +24,13 @@ export function retryStudyReport(p:StudyIntent):Promise<StudyResult>{
    if(!task)throw Error('Reload current tasks before applying this study report.')
    const result=await studyReports.run(p);ready();studyReports.assertContext(result.context)
    let applied=false
-   useStore.setState(s=>{
+   flushSync(()=>useStore.setState(s=>{
     if(JSON.stringify(s.sessions)!==before||JSON.stringify(s.tree.find(t=>t.id===p.event.taskId))!==task)return s
     applied=true;const keep=s.sessions.filter(r=>!(r.task_id===p.event.taskId&&r.day_key===p.event.day))
     return {sessions:result.session?[...keep,result.session]:keep,error:null}
-   })
+   }))
    if(!applied)throw Error('Study report saved on the server. Newer local work was kept; reload before retrying.')
+   ready();studyReports.assertContext(result.context);await studyReports.confirm(result)
    ready();studyReports.assertContext(result.context);studyReports.acknowledge(result)
    setStudyReportMessage(result.outcome==='reported'?'Study completion reported by the app. This is not independently verified.':result.outcome==='removed'?'Study record was removed; nothing was recreated.':'Current study record kept.');return result
   })

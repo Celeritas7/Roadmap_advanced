@@ -25,7 +25,8 @@ export async function prepareHubLifecycle(stage){
           const rows=await rpc('akatsuki_consume',{p_app:app,p_limit:limit});scope.assert();assertLease();let n=0;
           for(const r of rows||[]){
             scope.assert();assertLease();
-            if(app!=='rm'||r.from_app!=='wf'||r.to_app!=='rm'||r.kind!=='task.upsert'){
+            const supported=r.kind==='task.upsert'&&r.from_app==='wf'||r.kind==='session.completed'&&r.from_app==='jlpt'||r.kind==='suggestion.answered'&&['wf','cost','sukkiri','cal','scriptura','jlpt','cc'].includes(r.from_app);
+            if(app!=='rm'||r.to_app!=='rm'||!supported){
               log('consumer contract requires review',r.seq,r.kind);continue;
             }
             const handler=handlers[r.kind];if(!handler)continue;
@@ -90,8 +91,8 @@ export function bootHub(s:Store):Promise<void>{
  const current=window.RmHub({...client,__hubAccount:{...client.__hubAccount,startLeader:startAccountLeader,afterPoll:async()=>{
   scope.assert();await pollReplies();scope.assert();await refreshTags();scope.assert();await refreshPlaces();scope.assert();await refreshWhere()
  }}},{onTask:async(...args)=>{scope.assert();const result=await onTask(...args);scope.assert();return result},
- onAnswer:async(...args)=>{scope.assert();await suggester.onAnswer(...args);scope.assert()},
- onSession:async(...args)=>{scope.assert();await onSession(...args);scope.assert()},log:dbg})
+ onAnswer:async(...args)=>{scope.assert();const result=await suggester.onAnswer(...args);scope.assert();return result},
+ onSession:async(...args)=>{scope.assert();const result=await onSession(...args);scope.assert();return result},log:dbg})
  hub=current;suggester.attach(s)
  scope.cleanup(()=>{
   current.stop();suggester.stopHubContext();if(hub!==current)return

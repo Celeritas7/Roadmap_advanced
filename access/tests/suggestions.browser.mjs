@@ -17,8 +17,8 @@ async function fixture(work){
  window.suggestion=JSON.parse(localStorage.getItem('fixture-suggestion')||'null')||{id:'sg-synthetic',user_id:id(1),task:{board_id:'board',item_key:'study:日本語',sub_id:'sub',extra:{keep:'exact'}},rm_task_id:id(3),title:'Keep task',made_at:'2026-11-27T01:00:00Z',until:'2099-01-01T00:00:00Z',answer:null,answered_at:null,answer_app:null,missed:false,done_at:null,tone_step:0,say:'Keep',ctx:{}};
  window.receipts=JSON.parse(localStorage.getItem('fixture-answer-receipts')||'{}');
  const commit=args=>{
-  let r=window.receipts[args.p_request_id];if(!r){const p=args.p_payload;window.suggestion={...window.suggestion,answer:p.action,answered_at:'2026-11-27T02:00:00Z',answer_app:p.from_app};
-   r={request_id:args.p_request_id,receipt_id:args.p_request_id,replayed:false,outcome:'applied',suggestion:window.suggestion,effect:p.action==='skip'?{
+  let r=window.receipts[args.p_request_id];if(!r){const p=args.p_payload??{...window.input,from_app:'wf',seq:args.p_seq,day_key:args.p_day_key};window.suggestion={...window.suggestion,answer:p.action,answered_at:'2026-11-27T02:00:00Z',answer_app:p.from_app};
+   r={seq:p.seq,kind:'suggestion.answered',from_app:'wf',to_app:'rm',answer:p,request_id:args.p_request_id,receipt_id:args.p_request_id,replayed:false,outcome:'applied',suggestion:window.suggestion,effect:p.action==='skip'?{
     from_app:'rm',to_app:'wf',kind:'task.skipped',src_clock:null,src_addr:window.suggestion.task,idempotency_key:'rm:answer:'+args.p_request_id,
     payload:{...window.suggestion.task,reason:p.reason.trim(),at:'2026-11-27T02:00:00Z',suggestion_id:p.suggestion_id}}:null};
    window.receipts[args.p_request_id]=r;localStorage.setItem('fixture-suggestion',JSON.stringify(window.suggestion));localStorage.setItem('fixture-answer-receipts',JSON.stringify(window.receipts));
@@ -26,10 +26,11 @@ async function fixture(work){
  };
  const rpc=async(name,args)=>{
   window.calls.push({name,args:structuredClone(args)});
-  if(name==='ga_roadmap_answer_suggestion'){
+  if(name==='ga_roadmap_receive_suggestion_event'||name==='ga_roadmap_answer_local_suggestion'){
    if(window.mode==='hold')return new Promise(resolve=>window.finish=()=>resolve(commit(args)));
    const r=commit(args);return window.mode==='lost'?{error:{code:'504'},data:null}:r;
   }
+  if(name==='ga_roadmap_ack_consumer_event')return {error:null,data:{seq:args.p_seq,kind:'suggestion.answered',status:'delivered',replayed:false,reply_seq:100,reply:{protocol:'roadmap.consumer.v1',request_seq:args.p_seq,kind:'suggestion.answered',status:'applied'}}};
   if(name==='akatsuki_publish')return window.publishMode==='contract'?{error:{code:'AK103'},data:null}:window.publishMode==='lost'?{error:{code:'504'},data:null}:{error:null,data:[{seq:99,status:'pending'}]};
   throw Error('Unexpected RPC '+name);
  };
@@ -37,7 +38,7 @@ async function fixture(work){
  supabase.rpc=(name,args)=>{const result=rpc(name,args);return {then:result.then.bind(result),setHeader:()=>result}};
  supabase.from=table=>{const q={select(){return q},eq(){return q},order(){return q},or(){return q},gte(){return q},limit(){return table==='roadmap_study_sessions'?Promise.resolve(window.readFail?{error:{message:'Read failed'}}:{error:null,data:history.sessions}):q},
   maybeSingle:async()=>({error:null,data:window.suggestion}),then(resolve){return Promise.resolve({error:null,data:[]}).then(resolve)}};return q};
- window.answer=action=>suggest.onAnswer({suggestion_id:'sg-synthetic',action,reason:action==='skip'?'Keep 日本語 <script>text<'+'/script>':null,at:'2026-11-27T01:00:00Z'},'rm',25).then(()=>'',e=>e.message);
+ window.answer=action=>{window.input={suggestion_id:'sg-synthetic',action,reason:action==='skip'?'Keep 日本語 <script>text<'+'/script>':null,at:'2026-11-27T01:00:00Z'};return suggest.onAnswer(window.input,'wf',25).then(()=>'',e=>e.message)};
  window.startLoop=()=>{const hub={tags:async()=>[],suggest:async row=>{window.docs.push(row);if(window.docs.length===1)throw Error('Lost publication');return true},clearSuggestion:async()=>{}};
   suggest.start(hub,{refresh:async()=>{}})};
  window.tick=()=>suggest.tick();
@@ -57,7 +58,7 @@ test('actual suggestion handler and recovery UI preserve retries, text, proof an
  const first=await page.evaluate(()=>window.calls[0]);await page.reload();await page.waitForFunction(()=>window.ready===true);
  await page.evaluate(()=>{window.mode='ok';window.publishMode='lost'});await retry().click();await page.getByText(/Hub delivery is not confirmed/).waitFor();const publish=await page.evaluate(()=>window.calls.at(-1));
  await page.evaluate(()=>window.publishMode='ok');await retry().click();await page.waitForFunction(()=>window.pending().length===0);
- assert.deepEqual(await page.evaluate(()=>window.calls[0]),first);assert.deepEqual(await page.evaluate(()=>window.calls.at(-1)),publish);
+ assert.deepEqual(await page.evaluate(()=>window.calls[0]),first);assert.deepEqual(await page.evaluate(()=>window.calls.filter(c=>c.name==='akatsuki_publish').at(-1)),publish);
  assert.deepEqual(await page.evaluate(()=>({tree:window.state().tree,sessions:window.state().sessions,log:window.state().log})),before);
  assert.equal(await page.evaluate(()=>Object.keys(window.receipts).length),1);assert.equal(await page.evaluate(()=>localStorage.getItem('offline-pack')),'keep-pack');assert.equal(await page.evaluate(()=>localStorage.getItem('akatsuki_outbox_rm')),'legacy-keep');
 }));

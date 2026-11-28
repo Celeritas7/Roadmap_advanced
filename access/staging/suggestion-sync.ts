@@ -2,7 +2,8 @@ import {accountRpc} from './account-rpc.ts'
 import {supabase} from '../lib/supabase.ts'
 import {useStore} from './useStore.ts'
 import {dayKey} from '../lib/dailyReset.ts'
-import {assertNoPendingStructure} from './task-write-activity.ts'
+import {sessionActions} from './studySessions.ts'
+import {assertNoPendingStructure,ordinaryTasksBusy,runStudyReportMutation} from './task-write-activity.ts'
 import {createSuggestionAnswers,type AnswerIntent,type AnswerResult} from './suggestion-contract.ts'
 export const suggestionAnswers=createSuggestionAnswers({client:accountRpc(supabase,()=>suggestionAnswers.context(),c=>suggestionAnswers.assertContext(c)),storage:localStorage,uuid:()=>crypto.randomUUID()})
 let seen=false,previous:string|null=null,locked=false,message=''
@@ -27,9 +28,15 @@ export function retrySuggestionAnswer(p:AnswerIntent):Promise<void>{
  try{ready();suggestionAnswers.assertContext({...actor,owner:p.owner})}catch(e){return Promise.reject(e)}
  if(applying)return applying.owner===actor.owner&&applying.epoch===actor.epoch&&applying.requestId===p.requestId?applying.promise:Promise.reject(Error('Wait for the current suggestion answer.'))
  const work=(async()=>{
+  if(ordinaryTasksBusy()||sessionActions.list().length)throw Error('Resolve saved task/session changes first.')
+  await runStudyReportMutation(async()=>{
+  const before=JSON.stringify(useStore.getState().sessions)
   const result=await suggestionAnswers.run(p);ready();suggestionAnswers.assertContext(result.context)
+  if(JSON.stringify(useStore.getState().sessions)!==before)throw Error('Newer local study work was kept; reload before retrying the answer.')
   await applyView!(result);ready();suggestionAnswers.assertContext(result.context)
+  await suggestionAnswers.confirm(result);ready();suggestionAnswers.assertContext(result.context)
   suggestionAnswers.acknowledge(result);setSuggestionMessage(result.outcome==='unknown'?'Unknown suggestion reply was recorded.':'Suggestion answer confirmed.')
+  })
  })()
  applying={...actor,requestId:p.requestId,promise:work}
  void work.catch(e=>setSuggestionMessage(e instanceof Error?e.message:'Answer stays saved.')).finally(()=>{if(applying?.promise===work)applying=null}).catch(()=>{})

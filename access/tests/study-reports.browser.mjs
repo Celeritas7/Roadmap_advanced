@@ -11,10 +11,14 @@ async function fixture(work){const path=root+'study-report-test.html';await writ
  window.event={seq:20,from_app:'jlpt',payload:{task_id:id(3),day_key:'2026-11-26'}};window.mode='ok';window.acks=0;window.calls=[];
  window.hubRow=JSON.parse(localStorage.getItem('fixture-study-hub')||'null');const saveHub=()=>localStorage.setItem('fixture-study-hub',JSON.stringify(window.hubRow));
  window.state=()=>useStore.getState();window.pending=()=>studyReports.list();window.switchAccount=()=>studyReports.bind(id(2));
- const committed=()=>({error:null,data:{seq:20,task_id:id(3),day_key:'2026-11-26',replayed:false,outcome:'reported',session:{id:id(4),task_id:id(3),day_key:'2026-11-26',source:'japanese-study-app-advanced',started_at:'2026-11-26T18:50:00Z',completed_at:'2026-11-26T19:10:00Z',duration_min:20,feedback:{words:4,mode:'goi'},verification:'app',created_at:'2026-11-26T18:50:00Z'}}});
+ const committed=()=>({error:null,data:{kind:'session.completed',from_app:'jlpt',to_app:'rm',receipt_outcome:'reported',seq:20,task_id:id(3),day_key:'2026-11-26',replayed:false,outcome:'reported',session:{id:id(4),task_id:id(3),day_key:'2026-11-26',source:'japanese-study-app-advanced',started_at:'2026-11-26T18:50:00Z',completed_at:'2026-11-26T19:10:00Z',duration_min:20,feedback:{words:4,mode:'goi'},verification:'app',created_at:'2026-11-26T18:50:00Z'}}});
  const rpc=async(name,args)=>{window.calls.push({name,args:structuredClone(args)});
   if(name==='akatsuki_publish'){window.hubRow={...args.p,user_id:id(1),seq:20,status:'pending'};saveHub();return {data:{seq:20,status:'pending'},error:null}}
-  if(name!=='ga_roadmap_receive_study_report')throw Error('Unexpected RPC '+name);
+  if(name==='ga_roadmap_ack_consumer_event'||name==='ga_roadmap_consumer_status'){
+   if(name==='ga_roadmap_ack_consumer_event'){if(document.querySelector('output')?.textContent!=='App-reported completion')throw Error('Ack before rendered report');if(window.hubRow){window.hubRow.status='delivered';saveHub()}}
+   return window.hubRow?.status==='pending'?{data:{seq:args.p_seq,kind:'session.completed',status:'pending'},error:null}:{error:null,data:{seq:args.p_seq,kind:'session.completed',status:'delivered',replayed:false,reply_seq:100,reply:{protocol:'roadmap.consumer.v1',request_seq:args.p_seq,kind:'session.completed',status:'reported'}}};
+  }
+  if(name!=='ga_roadmap_receive_study_event')throw Error('Unexpected RPC '+name);
   if(window.mode==='hold')return new Promise(resolve=>window.resolveReport=()=>resolve(committed()));
   if(window.mode==='deny')return {data:null,error:{code:'42501'}};return window.mode==='lost'?{data:null,error:{code:'504'}}:committed();
  };
@@ -38,7 +42,7 @@ test('copied session consumer defers lost replies, recovers after reload and ack
  const before=await page.evaluate(()=>({tree:window.state().tree,old:window.state().sessions[0],log:window.state().log}));await page.evaluate(()=>window.mode='lost');assert.match((await page.evaluate(()=>window.deliver())).error,/not confirmed/);assert.equal(await page.evaluate(()=>window.acks),0);
  await page.reload();await page.waitForFunction(()=>window.ready===true);await page.getByRole('button',{name:'Retry study report',exact:true}).click();await page.waitForFunction(()=>window.pending().length===0);assert.equal(await page.locator('output').textContent(),'App-reported completion');await page.getByText(/not independently verified/).waitFor();
  await page.evaluate(()=>window.deliver());assert.equal(await page.evaluate(()=>window.acks),1);assert.equal(await page.evaluate(()=>window.state().sessions.length),2);assert.deepEqual(await page.evaluate(()=>({tree:window.state().tree,old:window.state().sessions[0],log:window.state().log})),before);
- assert.equal(await page.evaluate(()=>localStorage.getItem('offline-pack')),'keep-pack');assert.equal(await page.evaluate(()=>sessionStorage.getItem('rm-handshake')),'legacy-keep');assert.deepEqual(await page.evaluate(()=>window.calls.filter(c=>c.name).map(c=>c.args)),[{p_seq:20},{p_seq:20}]);
+ assert.equal(await page.evaluate(()=>localStorage.getItem('offline-pack')),'keep-pack');assert.equal(await page.evaluate(()=>sessionStorage.getItem('rm-handshake')),'legacy-keep');assert.deepEqual(await page.evaluate(()=>window.calls.filter(c=>c.name).map(c=>c.args)),[{p_seq:20},{p_seq:20},{p_seq:20},{p_seq:20}]);
 }));
 test('late report responses preserve account isolation and newer local study edits',async()=>fixture(async page=>{
  await page.evaluate(()=>{window.mode='hold';window.flight=window.deliver()});await page.waitForFunction(()=>!!window.resolveReport);await page.evaluate(()=>{window.state().sessions[0].feedback.notes='newer';window.resolveReport()});assert.match((await page.evaluate(()=>window.flight)).error,/Newer local work/);assert.equal(await page.evaluate(()=>window.acks),0);assert.equal(await page.evaluate(()=>window.state().sessions[0].feedback.notes),'newer');

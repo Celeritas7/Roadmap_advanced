@@ -1,9 +1,10 @@
+import {confirmConsumer} from './consumer-ack.ts'
 import type {RpcClient} from './session-contract.ts'
 import type {SessionRow} from '../types.ts'
 export type StudyEnvelope={seq:number;taskId:string;day:string}
 export type StudyIntent={version:1;owner:string;event:StudyEnvelope}
 export type StudyContext={owner:string|null;epoch:number}
-export type StudyResult={context:StudyContext;event:StudyEnvelope;outcome:string;session:SessionRow|null}
+export type StudyResult={context:StudyContext;event:StudyEnvelope;outcome:string;deliveryOutcome:string;session:SessionRow|null}
 const object=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==='object'&&!Array.isArray(x)
 const uuid=(x:unknown):x is string=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x)
 const stamp=(x:unknown)=>typeof x==='string'&&Number.isFinite(Date.parse(x))
@@ -14,7 +15,7 @@ export function studyEnvelope(x:unknown):StudyEnvelope{
 }
 export function createStudyReports({client,storage}:{client:RpcClient;storage:Storage}){
  let owner:string|null=null,epoch=0,running:{key:string;promise:Promise<StudyResult>}|null=null
- const listeners=new Set<()=>void>(),receipts=new WeakMap<StudyResult,{raw:string;value:string}>()
+ const listeners=new Set<()=>void>(),receipts=new WeakMap<StudyResult,{raw:string;value:string;confirmed?:boolean;confirming?:Promise<void>}>()
  const notify=()=>{for(const fn of listeners)fn()},context=():StudyContext=>({owner,epoch})
  function assertContext(c:StudyContext){if(!owner||owner!==c.owner||epoch!==c.epoch)throw Error('Account changed. Original study delivery stays saved.')}
  const prefix=(o:string)=>'rm-study-report-v1:'+o+':',key=(p:StudyIntent)=>prefix(p.owner)+p.event.seq
@@ -37,9 +38,9 @@ export function createStudyReports({client,storage}:{client:RpcClient;storage:St
   const current=()=>{assertContext(actor);if(storage.getItem(key(p))!==raw)throw Error('Newer saved study delivery exists.')}
   const work=(async()=>{
    // The server reads the stored stream; no browser payload, source or verification is authoritative.
-   const {data,error}=await client.rpc('ga_roadmap_receive_study_report',{p_seq:p.event.seq});current()
+   const {data,error}=await client.rpc('ga_roadmap_receive_study_event',{p_seq:p.event.seq});current()
    if(error)throw Object.assign(Error(error.code==='42501'?'Study access is paused or caller review is required.':error.code==='40001'?'Study record or contract changed; review before retrying.':'Study delivery was not confirmed. Retry the original.'),{code:error.code})
-   if(!object(data)||data.seq!==p.event.seq||data.task_id!==p.event.taskId||data.day_key!==p.event.day||typeof data.replayed!=='boolean'||
+   if(!object(data)||data.kind!=='session.completed'||data.from_app!=='jlpt'||data.to_app!=='rm'||!['reported','preserved','superseded'].includes(String(data.receipt_outcome))||data.seq!==p.event.seq||data.task_id!==p.event.taskId||data.day_key!==p.event.day||typeof data.replayed!=='boolean'||
     !['reported','preserved','superseded','removed'].includes(String(data.outcome)))throw Error('Study acknowledgement was not confirmed.')
    const s=data.session
    if(s===null?data.outcome!=='removed':!object(s)||!uuid(s.id)||s.task_id!==p.event.taskId||s.day_key!==p.event.day||
@@ -47,13 +48,23 @@ export function createStudyReports({client,storage}:{client:RpcClient;storage:St
     !(s.started_at===null||stamp(s.started_at))||!(s.completed_at===null||stamp(s.completed_at))||!stamp(s.created_at)||
     !(s.duration_min===null||Number.isInteger(s.duration_min))||!object(s.feedback)||
     data.outcome==='reported'&&(s.verification!=='app'||!s.completed_at||s.source!=='japanese-study-app-advanced'))throw Error('Study row was not confirmed.')
-   current();const result:StudyResult={context:actor,event:p.event,outcome:String(data.outcome),session:s as SessionRow|null};receipts.set(result,{raw,value:JSON.stringify(result)});return result
+   current();const result:StudyResult={context:actor,event:p.event,outcome:String(data.outcome),deliveryOutcome:String(data.receipt_outcome),session:s as SessionRow|null};receipts.set(result,{raw,value:JSON.stringify(result)});return result
   })()
   running={key:flight,promise:work};notify();void work.finally(()=>{if(running?.promise===work)running=null;notify()}).catch(()=>{});return work
  }
- function acknowledge(result:StudyResult){assertContext(result.context);const proof=receipts.get(result),k=prefix(owner!)+result.event.seq
+ function proofFor(result:StudyResult){assertContext(result.context);const proof=receipts.get(result),k=prefix(owner!)+result.event.seq
   if(!proof||JSON.stringify(result)!==proof.value||storage.getItem(k)!==proof.raw)throw Error('Saved study delivery changed. Review before continuing.')
+  return {proof,k}
+ }
+ function confirm(result:StudyResult):Promise<void>{
+  let proof:ReturnType<typeof proofFor>['proof'];try{proof=proofFor(result).proof}catch(e){return Promise.reject(e)}
+  if(proof.confirmed)return Promise.resolve();if(proof.confirming)return proof.confirming
+  const work=confirmConsumer(client,result.event.seq,'session.completed',result.deliveryOutcome,()=>{proofFor(result)}).then(()=>{proof.confirmed=true})
+  proof.confirming=work;void work.finally(()=>{delete proof.confirming}).catch(()=>{});return work
+ }
+ function acknowledge(result:StudyResult){const {proof,k}=proofFor(result)
+  if(!proof.confirmed)throw Error('Server acknowledgement is required. Original study delivery stays saved.')
   storage.removeItem(k);receipts.delete(result);notify()
  }
- return {prepare,run,acknowledge,list,context,assertContext,notify,busy:()=>!!running,bind(next:string|null){if(next!==owner){owner=next;epoch++;notify()}},subscribe(fn:()=>void){listeners.add(fn);return()=>{listeners.delete(fn)}}}
+ return {prepare,run,confirm,acknowledge,list,context,assertContext,notify,busy:()=>!!running,bind(next:string|null){if(next!==owner){owner=next;epoch++;notify()}},subscribe(fn:()=>void){listeners.add(fn);return()=>{listeners.delete(fn)}}}
 }
