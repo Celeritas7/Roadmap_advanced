@@ -1,7 +1,7 @@
 import {readFile,writeFile,cp} from 'node:fs/promises';import {join} from 'node:path';
 const replace=(text,old,next)=>{if(text.split(old).length!==2)throw Error('Hub lifecycle source drift: '+old.slice(0,65));return text.replace(old,next)};
 export async function prepareHubLifecycle(stage){
- for(const file of ['hub-account.ts','hub-outbox.ts','hub-account-sync.ts','HubQueueRecovery.tsx'])await cp(new URL('./'+file,import.meta.url),join(stage,'src/store',file));
+ for(const file of ['hub-account.ts','hub-outbox.ts','hub-account-sync.ts','HubQueueRecovery.tsx','shared-writer-contract.ts','SharedWriteRecovery.tsx'])await cp(new URL('./'+file,import.meta.url),join(stage,'src/store',file));
  const clientPath=join(stage,'public/akatsuki/akatsuki-client.js');let client=await readFile(clientPath,'utf8');
  client='/* Account-bound staging copy. Durable publication is separate from target\n * application. Remaining shared hub protocol contracts still require review. */\n'+client.slice(client.indexOf('(function ()'));
  client=client.replace(/  \/\/ R022 \(WF v98 ask\): refusals[^\n]+\n/,'');
@@ -45,7 +45,11 @@ export async function prepareHubLifecycle(stage){
 `+client.slice(ackEnd);
  const docsStart=client.indexOf('      /** Document pattern'),docsEnd=client.indexOf('      /* ── Places',docsStart);
  if(docsStart<0||docsEnd<0)throw Error('Hub document source drift');
- client=client.slice(0,docsStart)+`      async put(){scope.assert();throw Error('Shared document writes require their separate contract review.')},
+ client=client.slice(0,docsStart)+`      reviewShared(target){scope.assert();return account.shared.read(target)},
+      prepareShared(snapshot,change){scope.assert();return account.shared.prepare(snapshot,change)},
+      saveShared(intent){scope.assert();return account.shared.run(intent)},
+      confirmShared(result){scope.assert();return account.shared.acknowledge(result)},
+      async put(){scope.assert();throw Error('Shared document writes require their separate contract review.')},
       async remove(){scope.assert();throw Error('Shared document writes require their separate contract review.')},
 `+client.slice(docsEnd);
  // Place writers are shared mutations too; read helpers remain available.
@@ -119,5 +123,5 @@ export function stopHub(){try{hubAccounts.scope().stop()}catch{/* already stoppe
  // This preview does not start legacy generation/direct suggestion mutations.
  await writeFile(suggestionPath,suggestion);
  const appPath=join(stage,'src/App.tsx');let app=await readFile(appPath,'utf8');
- app="import {HubQueueRecovery} from './store/HubQueueRecovery.tsx'\n"+app.replace('<Header />','<Header /><HubQueueRecovery />');await writeFile(appPath,app);
+ app="import {SharedWriteRecovery} from './store/SharedWriteRecovery.tsx'\nimport {HubQueueRecovery} from './store/HubQueueRecovery.tsx'\n"+app.replace('<Header />','<Header /><HubQueueRecovery /><SharedWriteRecovery />');await writeFile(appPath,app);
 }

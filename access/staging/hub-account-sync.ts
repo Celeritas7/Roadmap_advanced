@@ -1,11 +1,12 @@
 import {supabase} from '../lib/supabase.ts'
 import {accountClient,createHubAccounts,ownerStorage} from './hub-account.ts'
 import {createHubOutbox,openHubOutbox,type OutboxRow} from './hub-outbox.ts'
+import {createSharedWriters} from './shared-writer-contract.ts'
 export const hubAccounts=createHubAccounts()
 export const hubContextStorage=ownerStorage(localStorage,()=>hubAccounts.scope())
 let seen=false,previous:string|null=null,reload=false,message='',rows:OutboxRow[]=[]
 const listeners=new Set<()=>void>(),notify=()=>{for(const fn of listeners)fn()}
-let store:ReturnType<typeof openHubOutbox>|null=null,cached:{scope:ReturnType<typeof hubAccounts.scope>;queue:ReturnType<typeof createHubOutbox>;client:ReturnType<typeof accountClient>}|null=null
+let store:ReturnType<typeof openHubOutbox>|null=null,cached:{scope:ReturnType<typeof hubAccounts.scope>;queue:ReturnType<typeof createHubOutbox>;client:ReturnType<typeof accountClient>;shared:ReturnType<typeof createSharedWriters>}|null=null
 export const hubReloadRequired=()=>reload
 export const hubQueueView=()=>({message,rows})
 export function hubMessage(text:string){message=text;notify()}
@@ -16,9 +17,10 @@ export function preparedHubClient(){
  if(cached?.scope!==scope){
   store??=openHubOutbox();const client=accountClient(supabase,scope)
   const queue=createHubOutbox(scope,'rm',store,client,navigator.locks,()=>{void refreshHubQueue()})
-  cached={scope,queue,client}
+  const shared=createSharedWriters({scope,client,storage:localStorage,locks:navigator.locks,notify})
+  cached={scope,queue,client,shared}
  }
- return {...cached.client,__hubAccount:{scope:cached.scope,outbox:cached.queue,report:hubMessage}}
+ return {...cached.client,__hubAccount:{scope:cached.scope,outbox:cached.queue,shared:cached.shared,report:hubMessage}}
 }
 export async function refreshHubQueue(){
  const actor=hubAccounts.context()
