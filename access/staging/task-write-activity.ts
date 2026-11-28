@@ -49,3 +49,9 @@ export async function runMirrorMutation<T>(write:()=>Promise<T>):Promise<T>{
  mirroring++
  try{return await write()}finally{mirroring--}
 }
+
+let studyRevision=0
+export const studyReportVersion=()=>studyRevision
+export async function runStudyReportMutation<T>(write:()=>Promise<T>):Promise<T>{
+ return runMirrorMutation(async()=>{studyRevision++;try{return await write()}finally{studyRevision++}})
+}

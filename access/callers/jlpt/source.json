@@ -1,0 +1,13 @@
+{
+  "repository": "Celeritas7/Japanese_study_app_advanced",
+  "commit": "9dc3ecf44371d26891ee4e883eada84140fbf3e4",
+  "path": "js/rmSession.js",
+  "sha256": "200465e82cc44cd527d41f5519151a0184639a736e6c323a6eae9c69805c7aa4",
+  "callSites": {
+    "js/app.js": [
+      1221,
+      1498
+    ]
+  },
+  "deploy": false
+}

@@ -25,6 +25,7 @@
     "src/lib/rmHub.ts": "e600d9883f9ef4c9ec76b7ce6cc7f182d8ee2f82d88f5ed851dbddbb3dadc9c4",
     "public/akatsuki/rm-adapter.js": "ebe3a2fae5903401a07e1b1fc33d7a609b940997142871a7e0bafb170f0b2805",
     "public/akatsuki/akatsuki-client.js": "a4bf06c7f9a3af335cf3e738569259be6e1c28b3c34ef1f8a78263ffe47decbb",
-    "src/features/home/NowStrip.tsx": "913961d8d3e36828e7c5a3ffd95e4ad1acd6ce8e2bf58b879b2f71e8f6c1d820"
+    "src/features/home/NowStrip.tsx": "913961d8d3e36828e7c5a3ffd95e4ad1acd6ce8e2bf58b879b2f71e8f6c1d820",
+    "src/features/home/HomeStop.tsx": "bb695c73ed08541baaa470aac4383d9dc7d7c09554e13cf3958582f6a2a50ae0"
   }
 }
