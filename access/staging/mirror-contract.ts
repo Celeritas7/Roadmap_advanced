@@ -16,7 +16,7 @@ export function normalizeMirror(input:unknown):MirrorEvent{
  if(!object(input)||Object.keys(input).length!==3||!object(input.address)||!object(input.payload)||!positive(input.seq))throw bad()
  const {address:a,payload:p,seq}=input
  if(!['board_id','item_key','sub_id'].every(k=>typeof a[k]==='string'&&!!(a[k] as string).trim())||
-  ['done','del','lat'].some(k=>k in p&&typeof p[k]!=='boolean')||['title','t'].some(k=>k in p&&(typeof p[k]!=='string'||bytes(p[k] as string)>4096))||
+  'deleted' in p||['done','del','lat'].some(k=>k in p&&typeof p[k]!=='boolean')||['title','t'].some(k=>k in p&&(typeof p[k]!=='string'||bytes(p[k] as string)>4096))||
   p.del!==true&&!(typeof (p.title??p.t)==='string'&&String(p.title??p.t).trim()))throw bad()
  let raw:string
  try{raw=JSON.stringify(input);if(bytes(JSON.stringify(a))>4096||bytes(JSON.stringify(p))>16384)throw bad()
@@ -31,7 +31,7 @@ function validRow(r:unknown,owner:string):r is TaskRow{return object(r)&&uuid(r.
  (r.streak_day===null||typeof r.streak_day==='string')&&Array.isArray(r.tags)&&r.tags.every(t=>typeof t==='string')&&stamp(r.created_at)&&stamp(r.updated_at)&&(r.user_id===undefined||r.user_id===owner)}
 export function createMirrors({client,storage}:{client:RpcClient;storage:Storage}){
  let owner:string|null=null,epoch=0,running:{key:string;promise:Promise<MirrorResult>}|null=null
- const listeners=new Set<()=>void>(),receipts=new WeakMap<MirrorResult,{raw:string;result:string}>()
+ const listeners=new Set<()=>void>(),receipts=new WeakMap<MirrorResult,{raw:string;result:string;confirmed?:boolean;confirming?:Promise<void>}>()
  const notify=()=>{for(const fn of listeners)fn()},context=():MirrorContext=>({owner,epoch})
  function assertContext(c:MirrorContext){if(!owner||owner!==c.owner||epoch!==c.epoch)throw Error('Account changed. Original mirror delivery stays saved.')}
  const prefix=(o:string)=>'rm-mirror-v1:'+o+':',key=(p:MirrorIntent)=>prefix(p.owner)+p.event.seq
@@ -56,9 +56,9 @@ export function createMirrors({client,storage}:{client:RpcClient;storage:Storage
   if(running)return running.key===flight?running.promise:Promise.reject(Error('Wait for the current mirror delivery.'))
   const current=()=>{assertContext(actor);if(storage.getItem(key(p))!==raw)throw Error('Newer saved mirror delivery exists. Review before continuing.')}
   const work=(async()=>{
-   const {data,error}=await client.rpc('ga_roadmap_receive_task',{p_address:p.event.address,p_payload:p.event.payload,p_seq:p.event.seq});current()
+   const {data,error}=await client.rpc('ga_roadmap_receive_task_event',{p_seq:p.event.seq});current()
    if(error)throw Object.assign(Error(error.code==='42501'?'Mirror access is paused or reconciliation is required. Original delivery stays saved.':error.code==='40001'?'Mirror pairing needs review. Original delivery stays saved.':'Mirror delivery was not confirmed. Retry the original.'),{code:error.code})
-   if(!object(data)||data.seq!==p.event.seq||!same(data.address,p.event.address)||typeof data.replayed!=='boolean'||!positive(data.last_seq)||data.last_seq<p.event.seq||
+   if(!object(data)||data.from_app!=='wf'||data.to_app!=='rm'||data.kind!=='task.upsert'||!same(data.payload,p.event.payload)||data.seq!==p.event.seq||!same(data.address,p.event.address)||typeof data.replayed!=='boolean'||!positive(data.last_seq)||data.last_seq<p.event.seq||
     data.task_id!==null&&!uuid(data.task_id)||typeof data.suppressed!=='boolean'||typeof data.source_deleted!=='boolean'||!Array.isArray(data.tasks)||data.tasks.length>2||
     data.tasks.some(r=>!validRow(r,p.owner))||new Set(data.tasks.map(r=>r.id)).size!==data.tasks.length)throw Error('Mirror acknowledgement was not confirmed.')
    const tasks:TaskRow[]=data.tasks,task=tasks.find(r=>r.id===data.task_id)
@@ -69,10 +69,26 @@ export function createMirrors({client,storage}:{client:RpcClient;storage:Storage
   })()
   running={key:flight,promise:work};notify();void work.finally(()=>{if(running?.promise===work)running=null;notify()}).catch(()=>{});return work
  }
- function acknowledge(result:MirrorResult){assertContext(result.context);const proof=receipts.get(result),k=prefix(owner!)+result.event.seq
+ function proofFor(result:MirrorResult){assertContext(result.context);const proof=receipts.get(result),k=prefix(owner!)+result.event.seq
   if(!proof||JSON.stringify(result)!==proof.result||storage.getItem(k)!==proof.raw)throw Error('Saved mirror delivery changed. Review before continuing.')
+  return {proof,k}
+ }
+ // Call only after applying the receive result to the current visible store.
+ function confirm(result:MirrorResult):Promise<void>{
+  let proof:ReturnType<typeof proofFor>['proof'];try{proof=proofFor(result).proof}catch(e){return Promise.reject(e)}
+  if(proof.confirmed)return Promise.resolve();if(proof.confirming)return proof.confirming
+  const work=(async()=>{
+   const {data,error}=await client.rpc('ga_roadmap_ack_task_event',{p_seq:result.event.seq});proofFor(result)
+   if(error)throw Object.assign(Error('Hub acknowledgement was not confirmed. Original delivery stays saved; retry it.'),{code:error.code})
+   if(!object(data)||data.seq!==result.event.seq||!same(data.address,result.event.address)||data.status!=='delivered'||
+    !['paired','orphaned','unpaired','superseded'].includes(String(data.outcome))||typeof data.replayed!=='boolean')throw Error('Hub acknowledgement was not confirmed.')
+   proof.confirmed=true
+  })();proof.confirming=work;void work.finally(()=>{delete proof.confirming}).catch(()=>{});return work
+ }
+ function acknowledge(result:MirrorResult){const {proof,k}=proofFor(result)
+  if(!proof.confirmed)throw Error('Server acknowledgement is required. Original delivery stays saved.')
   storage.removeItem(k);receipts.delete(result);notify()
  }
- return {prepare,run,acknowledge,list,context,assertContext,notify,busy:()=>!!running,
+ return {prepare,run,confirm,acknowledge,list,context,assertContext,notify,busy:()=>!!running,
   bind(next:string|null){if(next!==owner){owner=next;epoch++;notify()}},subscribe(fn:()=>void){listeners.add(fn);return()=>{listeners.delete(fn)}}}
 }

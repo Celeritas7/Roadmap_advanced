@@ -33,7 +33,7 @@ export async function prepareStaging(sourceRoot=root) {
  await prepareMirrors(stage,original);
  await prepareCompletions(stage);
  await prepareStudyReports(stage);
- await writeFile(join(stage,'src/types.ts'),original['src/types.ts'].replace('suggest(s: {','suggest(s: { madeAt?: string;'));
+ await writeFile(join(stage,'src/types.ts'),(await readFile(join(stage,'src/types.ts'),'utf8')).replace('suggest(s: {','suggest(s: { madeAt?: string;'));
  await writeFile(join(stage,'src/features/home/NowStrip.tsx'),original['src/features/home/NowStrip.tsx'].replace('.then(() => tick())',".then(() => tick()).catch(e=>useStore.setState({error:e instanceof Error?e.message:'Answer stays saved.'}))"));
  let ordinary=original['src/store/sync.ts'];
  ordinary="import { trackTaskWrite } from './task-write-activity.ts'\n"+ordinary

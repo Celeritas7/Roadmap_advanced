@@ -1,31 +1,23 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,mkdir,readFile,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';import vm from 'node:vm';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,mkdir,readFile,writeFile,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';import vm from 'node:vm';
 import {prepareSuggestions} from '../staging/prepare-suggestions.mjs';
 import {prepareMirrors} from '../staging/prepare-mirrors.mjs';
-const original={};for(const file of ['src/lib/suggester.ts','src/lib/rmHub.ts','public/akatsuki/rm-adapter.js'])original[file]=await readFile(new URL('../../'+file,import.meta.url),'utf8');
+const original={};for(const file of ['src/lib/suggester.ts','src/lib/rmHub.ts','src/types.ts','public/akatsuki/rm-adapter.js'])original[file]=await readFile(new URL('../../'+file,import.meta.url),'utf8');
 const temp=await mkdtemp(join(tmpdir(),'roadmap-suggestion-adapter-'));let adapter;
-try{for(const dir of ['src/store','src/lib','public/akatsuki'])await mkdir(join(temp,dir),{recursive:true});await prepareSuggestions(temp,original);await prepareMirrors(temp,original);adapter=await readFile(join(temp,'public/akatsuki/rm-adapter.js'),'utf8')}finally{await rm(temp,{recursive:true,force:true})}
-const client=await readFile(new URL('../../public/akatsuki/akatsuki-client.js',import.meta.url),'utf8');
+try{for(const dir of ['src/store','src/lib','public/akatsuki'])await mkdir(join(temp,dir),{recursive:true});await writeFile(join(temp,'src/types.ts'),original['src/types.ts']);await prepareSuggestions(temp,original);await prepareMirrors(temp,original);adapter=await readFile(join(temp,'public/akatsuki/rm-adapter.js'),'utf8')}finally{await rm(temp,{recursive:true,force:true})}
 const plain=x=>JSON.parse(JSON.stringify(x));
-function setup(callbacks){let handlers;const calls=[],rows=[];
- const sandbox={console,navigator:{onLine:true},document:{},localStorage:{getItem:()=>null,setItem:()=>{}},window:{addEventListener:()=>{}}};vm.createContext(sandbox);vm.runInContext(client,sandbox);vm.runInContext(adapter,sandbox);
- const hub=sandbox.window.RmHub({rpc:async(name,args)=>{calls.push({name,args:plain(args)});return {error:null,data:name==='akatsuki_consume'?rows:[]}}},callbacks);
- hub.hub.listen=h=>{handlers=h;return()=>{}};hub.start();return {hub,calls,rows,consume:()=>hub.hub.consume(handlers)};
+// Adapter-only checks. The real copied client's checked ack/gates are covered in mirrors.browser.mjs.
+function setup(callbacks){let handlers;const backend={listen:h=>{handlers=h;return()=>{}}};const sandbox={console,window:{Akatsuki:()=>backend}};vm.createContext(sandbox);vm.runInContext(adapter,sandbox);
+ const hub=sandbox.window.RmHub({},callbacks);hub.start();return {hub,deliver:r=>handlers[r.kind](r)};
 }
-test('copied adapter preserves rejection and deferral instead of acknowledging malformed or transient work',async()=>{
- for(const [kind,callback,result,status] of [['task.upsert','onTask',{reject:'bad'},'rejected'],['task.upsert','onTask',{defer:'busy'},'defer'],
-  ['suggestion.answered','onAnswer',{reject:'bad'},'rejected'],['session.completed','onSession',{defer:'busy'},'defer']]){
-  const s=setup({[callback]:async()=>result});s.rows.push({kind,from_app:'wf',seq:27,src_addr:{board_id:'board',item_key:'item',sub_id:'sub'},payload:{}});await s.consume();
-  const ack=s.calls.find(c=>c.name==='akatsuki_ack'),defer=s.calls.find(c=>c.name==='akatsuki_defer');
-  if(status==='defer'){assert.equal(ack,undefined);assert.ok(defer)}else{assert.equal(ack.args.p_status,status);assert.equal(ack.args.p_b_addr,null);assert.equal(defer,undefined)}
- }
- for(const [code,status] of [['22023','rejected'],['504','defer']]){
-  const s=setup({onAnswer:async()=>{throw Object.assign(Error('changed wording'),{code})}});s.rows.push({kind:'suggestion.answered',seq:28,payload:{}});await s.consume();
-  assert.ok(s.calls.some(c=>status==='defer'?c.name==='akatsuki_defer':c.name==='akatsuki_ack'&&c.args.p_status===status));
+const event=(kind='task.upsert')=>({kind,from_app:kind==='session.completed'?'jlpt':'wf',to_app:'rm',seq:27,src_addr:{board_id:'board',item_key:'item',sub_id:'sub'},payload:{}});
+test('copied adapter preserves explicit rejection and deferral for independently reviewed consumers',async()=>{
+ for(const [kind,callback,result] of [['task.upsert','onTask',{reject:'bad'}],['task.upsert','onTask',{defer:'busy'}],['suggestion.answered','onAnswer',{reject:'bad'}],['session.completed','onSession',{defer:'busy'}]]){
+  const s=setup({[callback]:async()=>result});assert.deepEqual(plain(await s.deliver(event(kind))),result);
  }
 });
-test('hub acknowledgement waits until the actual handler finishes applying the answer',async()=>{
- let finish;const s=setup({onAnswer:()=>new Promise(r=>finish=r)});s.rows.push({kind:'suggestion.answered',seq:29,payload:{}});const flight=s.consume();await new Promise(r=>setImmediate(r));
- assert.equal(s.calls.filter(c=>c.name==='akatsuki_ack').length,0);finish();await flight;assert.equal(s.calls.filter(c=>c.name==='akatsuki_ack').length,1);
+test('adapter waits for suggestion handler completion before returning to its consumer',async()=>{
+ let finish,settled=false;const s=setup({onAnswer:()=>new Promise(r=>finish=r)}),work=s.deliver(event('suggestion.answered')).then(r=>{settled=true;return r});
+ await new Promise(r=>setImmediate(r));assert.equal(settled,false);finish();assert.deepEqual(plain(await work),{});
 });
 test('publication cache confirms only successful full nested values and does not repeatedly clear a native suggestion',async()=>{
  const s=setup({}),writes=[];let fail=true,removes=0;
@@ -36,18 +28,13 @@ test('publication cache confirms only successful full nested values and does not
  fail=true;await assert.rejects(()=>s.hub.clearSuggestion());fail=false;await s.hub.clearSuggestion();await s.hub.clearSuggestion();assert.equal(removes,2);
  await s.hub.suggest(row);assert.equal(writes.length,4);
 });
-
-test('mirror adapter rejects malformed/foreign deliveries and never acknowledges a failed or unreviewed orphan transition',async()=>{
- for(const [source,code,del,expected] of [['wf','22023',false,'rejected'],['other',null,false,'rejected'],['wf','504',false,'defer'],['wf',null,true,'defer']]){
-  const s=setup({onTask:async()=>{if(code)throw Object.assign(Error('changed wording'),{code});return 'synthetic-task'}});
-  s.rows.push({kind:'task.upsert',from_app:source,seq:18,src_addr:{board_id:'a',item_key:'b',sub_id:'c'},payload:{title:'Keep',del}});await s.consume();
-  assert.equal(s.calls.some(c=>c.name==='akatsuki_orphan'),false);
-  if(expected==='defer'){assert.ok(s.calls.some(c=>c.name==='akatsuki_defer'));assert.equal(s.calls.some(c=>c.name==='akatsuki_ack'),false)}
-  else assert.equal(s.calls.find(c=>c.name==='akatsuki_ack').args.p_status,'rejected');
- }
+test('mirror adapter retains malformed/foreign refusals and never invents pairing or orphan writes',async()=>{
+ const proof={acknowledged:true,seq:27},ok=setup({onTask:async()=>proof});assert.deepEqual(plain(await ok.deliver({...event(),payload:{del:true}})),proof);
+ assert.deepEqual(plain(await ok.deliver({...event(),from_app:'other'})),{reject:'unexpected mirror source'});
+ const bad=setup({onTask:async()=>{throw Object.assign(Error('changed wording'),{code:'22023'})}});assert.deepEqual(plain(await bad.deliver(event())),{reject:'malformed mirror delivery'});
+ const lost=setup({onTask:async()=>{throw Object.assign(Error('lost reply'),{code:'504'})}});await assert.rejects(()=>lost.deliver(event()),/lost reply/);
 });
-test('mirror acknowledgement waits for visible application and stale callbacks do not rewrite hub pairing',async()=>{
- let finish;const s=setup({onTask:()=>new Promise(r=>finish=r)});s.rows.push({kind:'task.upsert',from_app:'wf',seq:19,src_addr:{board_id:'a',item_key:'b',sub_id:'c'},payload:{title:'Keep'}});
- const work=s.consume();await new Promise(r=>setImmediate(r));assert.equal(s.calls.some(c=>c.name==='akatsuki_ack'),false);finish(null);await work;
- assert.equal(s.calls.find(c=>c.name==='akatsuki_ack').args.p_b_addr,null);
+test('mirror adapter waits for checked acknowledgement proof and preserves its sequence',async()=>{
+ let finish,seen,settled=false;const s=setup({onTask:(...args)=>{seen=args;return new Promise(r=>finish=r)}}),row=event(),work=s.deliver(row).then(r=>{settled=true;return r});
+ await new Promise(r=>setImmediate(r));assert.equal(settled,false);assert.deepEqual(seen,[row.src_addr,row.payload,27]);finish({acknowledged:true,seq:27});assert.deepEqual(plain(await work),{acknowledged:true,seq:27});
 });

@@ -1,3 +1,4 @@
+import {flushSync} from 'react-dom'
 import {accountRpc} from './account-rpc.ts'
 import {supabase} from '../lib/supabase.ts'
 import {useStore} from './useStore.ts'
@@ -39,15 +40,16 @@ export function retryMirror(p:MirrorIntent):Promise<MirrorResult>{
    const before=new Map(useStore.getState().tree.map(t=>[t.id,JSON.stringify(t)]))
    const result=await mirrors.run(p);ready();mirrors.assertContext(result.context)
    let applied=false
-   useStore.setState(s=>{
+   flushSync(()=>useStore.setState(s=>{
     if(result.tasks.some(t=>before.get(t.id)!==JSON.stringify(s.tree.find(r=>r.id===t.id)))||
      result.suppressed&&s.tree.some(t=>t.id===result.taskId))return s
     const rows=new Map(result.tasks.map(t=>[t.id,t]));applied=true
     return {tree:[...s.tree.map(t=>rows.get(t.id)??t),...result.tasks.filter(t=>!s.tree.some(r=>r.id===t.id))],error:null}
-   })
+   }))
    if(!applied)throw Error('Mirror saved on the server. Newer local work was kept; reload current tasks before retrying.')
-   ready();mirrors.assertContext(result.context);pairView?.(result);mirrors.acknowledge(result)
-   setMirrorMessage(result.sourceDeleted?'Mirror retained as orphaned. Hub deletion acknowledgement still requires review.':'Mirror delivery confirmed.');return result
+   ready();mirrors.assertContext(result.context);pairView?.(result);await mirrors.confirm(result)
+   ready();mirrors.assertContext(result.context);mirrors.acknowledge(result)
+   setMirrorMessage(result.sourceDeleted?'Mirror retained as orphaned. Hub acknowledgement confirmed.':'Mirror delivery confirmed.');return result
   })
  })()
  applying={...actor,seq:p.event.seq,promise:work};void work.catch(e=>setMirrorMessage(e instanceof Error?e.message:'Delivery stays saved.')).finally(()=>{if(applying?.promise===work)applying=null;mirrors.notify()}).catch(()=>{});return work

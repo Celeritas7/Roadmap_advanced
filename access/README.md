@@ -550,3 +550,41 @@ Next: shared hub protocol acceptance (link/orphan acknowledgements, attribution,
 sender authority and remaining document writers), then coordinated caller cutover
 and the other G0 gates. Hosted changes/enrollment remain on hold and restoration
 remains deferred at its existing checkpoint.
+
+## Checked mirror acknowledgements (G0 preparation)
+
+Commonplace #147 and Roadmap #30 are merged. This bounded follow-up pairs with
+Commonplace candidate `21_roadmap_hub_acknowledgements.sql` and
+[Hub protocol readiness](https://github.com/Celeritas7/Commonplace/blob/fix/g0-hub-protocol-acceptance/platform/acceptance/ROADMAP-HUB-PROTOCOL-READINESS.md).
+It remains an ignored loopback copy. Root `src/`, `public/`, Auth storage,
+deployment and automatic hub startup are unchanged.
+
+The copied task-mirror handler now supplies only the original sequence to
+`ga_roadmap_receive_task_event`, checks returned address/payload/direction, applies
+current rows without overwriting newer local edits, flushes the subscribed view,
+and calls `ga_roadmap_ack_task_event`. A matching server acknowledgement is
+required before clearing its original owner-scoped pending slot. Lost replies,
+reload and account switches keep recoverable intent. The actual copied SDK and
+adapter recognize this handler's acknowledgement proof and never issue a second
+legacy ack. Canonical `del` follows the same server-owned orphan path.
+
+The generic consumer only invokes WF → RM `task.upsert` in this preparation.
+Other kinds remain pending for their exact-request contract; previously prepared
+suggestion/study handlers remain available for standalone acceptance but are not
+activated here. Direct copied ack/reply/orphan/document/place writes fail closed.
+No legacy request is rejected or deferred using an unreviewed mutation path.
+
+Tests combine the copied client, adapter, real handler and rendered store, checking
+lost acknowledgements across reload, one ack after rendering, source deletion,
+account changes, generic writer gates and preservation of personal/offline bytes.
+Transport is synthetic; this is not hosted or physical-device acceptance.
+
+Candidate 21 starts with an empty private protocol gate and revokes browser access
+to candidate 19's three-argument receiver. Its SQL and client must be coordinated
+in a later approved installation/cutover window, after legacy link/receipt review.
+App strings and registry declarations do not attest a sender. Existing shared hub
+write grants and stale shared-document behavior remain G0 blockers. Keep receipts,
+original pending slots and the deferred restoration checkpoint; do not clear data.
+Next: exact-request acknowledgement/reply contracts for remaining prepared
+suggestion/study consumers, followed by shared-document/place writers and sender
+policy/caller cutovers. Hosted changes and learner enrollment remain on hold.
