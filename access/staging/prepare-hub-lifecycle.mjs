@@ -17,14 +17,42 @@ export async function prepareHubLifecycle(stage){
  client=client.slice(0,publish)+`      publish(input){scope.assert();return account.outbox.publish(input)},
       flush(){scope.assert();return account.outbox.flush()},
 `+client.slice(consume);
- client=replace(client,'      async consume(handlers, limit = 100) {',`      consume(handlers,limit=100,assertLease=()=>scope.assert()) {
+ const consumeStart=client.indexOf('      async consume(handlers, limit = 100)'),ackEnd=client.indexOf('      /** Request / reply',consumeStart);
+ if(consumeStart<0||ackEnd<0)throw Error('Hub protocol source drift');
+ client=client.slice(0,consumeStart)+`      consume(handlers,limit=100,assertLease=()=>scope.assert()) {
         scope.assert();assertLease();if(consuming)return consuming;
-        const flight=(async()=>{`);
- client=replace(client,'        for (const r of rows || []) {','        scope.assert();assertLease();\n        for (const r of rows || []) {\n          scope.assert();assertLease();');
- client=replace(client,'          if (res.reject)', '          scope.assert();assertLease();\n          if (res.reject)');
- client=replace(client,'        return n;\n      },',`        return n;
+        const flight=(async()=>{
+          const rows=await rpc('akatsuki_consume',{p_app:app,p_limit:limit});scope.assert();assertLease();let n=0;
+          for(const r of rows||[]){
+            scope.assert();assertLease();
+            if(app!=='rm'||r.from_app!=='wf'||r.to_app!=='rm'||r.kind!=='task.upsert'){
+              log('consumer contract requires review',r.seq,r.kind);continue;
+            }
+            const handler=handlers[r.kind];if(!handler)continue;
+            let result;try{result=await handler(r)}catch(e){scope.assert();assertLease();log('delivery stays pending',r.seq,e.message);continue}
+            scope.assert();assertLease();
+            if(result?.acknowledged===true&&result.seq===r.seq)n++;
+            else log('server acknowledgement required',r.seq);
+          }
+          return n;
         })();consuming=flight;void flight.finally(()=>{if(consuming===flight)consuming=null}).catch(()=>{});return flight;
-      },`);
+      },
+      async ack(){scope.assert();throw Error('Use the server-checked mirror acknowledgement contract.')},
+      async reply(){scope.assert();throw Error('Exact-request replies require their separate contract review.')},
+      async orphan(){scope.assert();throw Error('Orphan changes require the server-checked mirror contract.')},
+
+`+client.slice(ackEnd);
+ const docsStart=client.indexOf('      /** Document pattern'),docsEnd=client.indexOf('      /* ── Places',docsStart);
+ if(docsStart<0||docsEnd<0)throw Error('Hub document source drift');
+ client=client.slice(0,docsStart)+`      async put(){scope.assert();throw Error('Shared document writes require their separate contract review.')},
+      async remove(){scope.assert();throw Error('Shared document writes require their separate contract review.')},
+`+client.slice(docsEnd);
+ // Place writers are shared mutations too; read helpers remain available.
+ for(const name of ['addPlace','editPlace','retirePlace']){
+  const pattern=new RegExp('      (?:async )?'+name+'\\([^\\n]+\\n');
+  if(!pattern.test(client))throw Error('Hub place writer source drift: '+name);
+  client=client.replace(pattern,`      async ${name}(){scope.assert();throw Error('Shared place writes require their separate contract review.')},\n`);
+ }
  const listen=client.indexOf('      listen(handlers, ms = 15000)'),listenEnd=client.indexOf('\n    };',listen);
  if(listen<0||listenEnd<0)throw Error('Hub listener source drift');
  client=client.slice(0,listen)+`      listen(handlers,ms=15000) {

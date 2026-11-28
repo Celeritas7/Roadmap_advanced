@@ -73,7 +73,7 @@ test('lost publication reconciles without resending; contract blocks remain visi
  await page.reload();await page.waitForFunction(()=>window.ready);await page.getByRole('button',{name:'Retry saved hub requests'}).click();await page.getByText(/contract requires review \(AK101\)/).waitFor();assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.kind==='akatsuki_publish').length),0);
 }));
 test('copied consumer stops after account changes during a handler, with no old ack or second handler',async()=>fixture(async page=>{
- await page.evaluate(()=>{window.events=[{seq:1,kind:'test'},{seq:2,kind:'test'}];window.handled=[];window.flight=window.hub.consume({test:async r=>{window.handled.push(r.seq);await new Promise(resolve=>window.finish=resolve);return {addr:{id:'original'}}}}).catch(e=>e.message)});await page.waitForFunction(()=>!!window.finish);
+ await page.evaluate(()=>{window.events=[{seq:1,from_app:'wf',to_app:'rm',kind:'task.upsert'},{seq:2,from_app:'wf',to_app:'rm',kind:'task.upsert'}];window.handled=[];window.flight=window.hub.consume({'task.upsert':async r=>{window.handled.push(r.seq);await new Promise(resolve=>window.finish=resolve);return {addr:{id:'original'}}}}).catch(e=>e.message)});await page.waitForFunction(()=>!!window.finish);
  await page.evaluate(()=>{window.activate(window.B);window.activate(window.A);window.finish()});assert.match(await page.evaluate(()=>window.flight),/stopped/);assert.deepEqual(await page.evaluate(()=>window.handled),[1]);assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.kind==='akatsuki_ack'||c.kind==='akatsuki_defer').length),0);
  const late=await page.evaluate(async()=>{try{await window.hub.ack(1)}catch(e){return e.message}});assert.match(late,/stopped/);
 }));

@@ -4,10 +4,10 @@ export async function prepareMirrors(stage,original){
  let source=original['src/lib/rmHub.ts'];
  const begin=source.indexOf('async function folderFor('),end=source.indexOf('\nasync function tagOrphan',begin);
  if(begin<0||end<0)throw Error('Mirror source changed');
- source=source.slice(0,begin)+`export async function onTask(addr:WfAddr,p:Record<string,unknown>,seq:number):Promise<string|null>{
+ source=source.slice(0,begin)+`export async function onTask(addr:WfAddr,p:Record<string,unknown>,seq:number):Promise<{acknowledged:true;seq:number}>{
  const result=await receiveMirror(addr,p,seq)
- // Stale events cannot republish an older pair into hub metadata.
- return result.suppressed||result.sourceDeleted||result.lastSeq>seq?null:result.taskId
+ // Server derives pair/deletion state. The generic client must not acknowledge again.
+ return {acknowledged:true,seq:result.event.seq}
 }
 `+source.slice(end);
  source="import {receiveMirror,mirrors,registerMirrorPair} from '../store/mirror-sync.ts'\nimport {mirrorAddressKey} from '../store/mirror-contract.ts'\n"+source
@@ -37,7 +37,12 @@ registerMirrorPair(result=>{
             let out;
             try { out = await opts.onTask(r.src_addr, r.payload, r.seq); }
             catch(e) { if(e && e.code === '22023') return {reject:'malformed mirror delivery'}; throw e; }`)
-  .replace("if (r.payload.del) { await hub.orphan(r.src_addr).catch(() => {}); }", "if (r.payload.del) return {defer:'hub deletion acknowledgement requires review'};");
+  .replace("if (r.payload.del) { await hub.orphan(r.src_addr).catch(() => {}); }", "return out;");
+ adapter=adapter.replace('            return out ? { addr: { id: out } } : {};', '');
  if(adapter.includes('if (r.payload.del) { await hub.orphan(r.src_addr)'))throw Error('Unreviewed orphan path remains');
  await writeFile(path,adapter);
+ const typesPath=join(stage,'src/types.ts'),types=await readFile(typesPath,'utf8');
+ const oldType='onTask: (addr: WfAddr, payload: Record<string, unknown>, seq: number) => Promise<string | null>';
+ if(!types.includes(oldType))throw Error('Mirror callback type drift');
+ await writeFile(typesPath,types.replace(oldType,'onTask: (addr: WfAddr, payload: Record<string, unknown>, seq: number) => Promise<{acknowledged:true;seq:number}>'));
 }
