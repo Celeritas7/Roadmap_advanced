@@ -8,7 +8,7 @@ export async function prepareHubLifecycle(stage){
  const start=client.indexOf('    const OUTBOX'),end=client.indexOf('    async function rpc',start);
  if(start<0||end<0)throw Error('Hub client source drift');
  client=client.slice(0,start)+`    const account=supabase.__hubAccount;
-    if(!account||account.scope.owner==null)throw Error('Account-bound staging hub client required');
+    if(!account||account.scope.owner==null||account.outbox.app!==app)throw Error('Matching account and app-bound staging hub client required');
     const scope=account.scope,log=opts.log||(()=>{});scope.assert();
     let consuming=null;
 `+client.slice(end);

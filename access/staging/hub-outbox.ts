@@ -13,6 +13,7 @@ export function canonical(value:unknown,depth=0):string{
  throw Error('Hub data must be plain JSON.')
 }
 const identity=(owner:string,app:string,key:string)=>JSON.stringify([owner,app,key])
+const hubStatuses=['pending','delivered','rejected','skipped']
 export function validateEffect(effect:Effect,app:string){
  const text=canonical(effect)
  if(!/^[a-z][a-z0-9_-]{0,63}$/.test(app)||!object(effect)||effect.from_app!==app||typeof effect.to_app!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(effect.to_app)||
@@ -24,8 +25,9 @@ export function validateEffect(effect:Effect,app:string){
 function validateRow(row:OutboxRow,scope:AccountScope,app:string){
  scope.assert()
  if(!object(row)||!isOwner(row.owner)||row.owner!==scope.owner||row.app!==app||row.identity!==identity(row.owner,app,row.effect?.idempotency_key)||
-  !['pending','blocked','sent'].includes(row.state)||row.reason!==null&&typeof row.reason!=='string'||
-  row.state==='sent'&&(!row.receipt||!Number.isSafeInteger(row.receipt.seq)||row.receipt.seq<1)||
+  !['pending','blocked','sent'].includes(row.state)||row.reason!==null&&(typeof row.reason!=='string'||bytes(row.reason)>1024)||
+  row.order!==undefined&&(!Number.isSafeInteger(row.order)||row.order<1)||row.state==='blocked'&&!row.reason||
+  row.state==='sent'&&(!row.receipt||!Number.isSafeInteger(row.receipt.seq)||row.receipt.seq<1||!hubStatuses.includes(row.receipt.status)||row.reason!==null)||
   row.state!=='sent'&&row.receipt!==null)throw Error('Saved hub queue needs review. Nothing was removed.')
  validateEffect(row.effect,app);return row
 }
@@ -87,7 +89,7 @@ export function createHubOutbox(scope:AccountScope,app:string,store:OutboxStore,
   if(!value)return null
   const effect=Object.fromEntries(Object.keys(row.effect).map(k=>[k,value[k]]))
   let exact=false;try{exact=canonical(effect)===canonical(row.effect)}catch{/* malformed evidence is never confirmation */}
-  if(value.user_id!==scope.owner||!Number.isSafeInteger(value.seq)||value.seq<1||!['pending','delivered','rejected','skipped','closed'].includes(value.status)||!exact)throw Object.assign(Error('Stored hub request differs. Review required.'),{code:'EFFECT_MISMATCH'})
+  if(value.user_id!==scope.owner||!Number.isSafeInteger(value.seq)||value.seq<1||!hubStatuses.includes(value.status)||!exact)throw Object.assign(Error('Stored hub request differs. Review required.'),{code:'EFFECT_MISMATCH'})
   return {seq:value.seq,status:value.status}
  }
  async function flushWork(lease:AccountScope){
@@ -115,7 +117,7 @@ export function createHubOutbox(scope:AccountScope,app:string,store:OutboxStore,
    }return count
   })
  }
- return {list,
+ return {app,list,
   async publish(input:{to:string;kind:string;addr:Record<string,unknown>;payload:Record<string,unknown>;clock?:string|null;key:string}){
    scope.assert();const row=await store.add(scope,app,{from_app:app,to_app:input.to,kind:input.kind,src_addr:input.addr,src_clock:input.clock??null,payload:input.payload,idempotency_key:input.key});scope.assert();notify()
    // Durable queueing is explicit; only the leader or an explicit Retry sends.
