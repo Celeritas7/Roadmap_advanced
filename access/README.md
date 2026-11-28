@@ -588,3 +588,37 @@ original pending slots and the deferred restoration checkpoint; do not clear dat
 Next: exact-request acknowledgement/reply contracts for remaining prepared
 suggestion/study consumers, followed by shared-document/place writers and sender
 policy/caller cutovers. Hosted changes and learner enrollment remain on hold.
+
+## Exact suggestion and study acknowledgements (G0 preparation)
+
+Commonplace #148 and Roadmap #31 are merged. This bounded continuation pairs with
+Commonplace candidate `22_roadmap_consumer_acknowledgements.sql` and
+[consumer readiness](https://github.com/Celeritas7/Commonplace/blob/fix/g0-consumer-receipts-review/platform/acceptance/ROADMAP-CONSUMER-READINESS.md).
+It changes only `access/`; production runtime, Auth storage, automatic startup,
+existing offline packs and legacy saved keys remain unchanged.
+
+The prepared generic consumer now permits the supported suggestion/study
+handlers. Suggestion receive sends sequence/request/day, and compares the stored
+server answer with the saved intent. Native answers use the separate local-only
+API. Both handlers apply current rows, flush the subscribed view and validate the
+reply for the exact original request before clearing local recovery. The generic
+client/adapter does not acknowledge again. Unsupported event kinds and direct
+legacy ack/reply/orphan/document/place writers remain gated. An allowlisted app
+name selects a supported parser; it is not authentication or a server permission.
+
+The original owner/sequence slot survives lost acknowledgement, reload,
+account A–B–A, changed saved bytes and malformed/mismatched replies. The study
+sender checks a private server receipt rather than trusting a public delivered
+flag. Completion remains app-reported, not independently verified. A confirmed
+skip publication means received by the hub, not applied by Weekly Focus.
+
+Candidate 22's new source gates start empty. A later approved coordinated
+SQL/client installation must reconcile old unchecked receipts and replace both
+old candidate 17/20 browser APIs. Merging preparation does not activate it.
+The synthetic contract/browser tests and disposable server CI are not hosted or
+physical iPad acceptance. Browser execution in the current workspace is blocked
+by Chromium socket setup; use the existing CI runner for that evidence.
+
+Next: shared-document/place version checks and conflict recovery, then sender
+policy, actual caller cutover and the remaining G0 gates. Hosted changes and
+learner enrollment stay on hold; restoration remains deferred.

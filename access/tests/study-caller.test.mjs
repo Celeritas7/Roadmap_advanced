@@ -1,4 +1,5 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {createStudyCaller,studyLaunchUrl,safeStudyReturn} from '../staging/study-caller.mjs';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {consumerAck} from './consumer-test-support.mjs';
+import {createStudyCaller,studyLaunchUrl,safeStudyReturn} from '../staging/study-caller.mjs';
 const id=n=>'21000000-0000-4000-8000-'+String(n).padStart(12,'0');const ret='https://celeritas7.github.io/Roadmap_advanced/';
 const url=(owner=id(1),launch=id(4))=>studyLaunchUrl('https://celeritas7.github.io/Japanese_study_app_advanced/?view=study#keep',id(3),'2026-11-26',owner,launch,ret);
 const memory=()=>{const m=new Map();return {get length(){return m.size},key:i=>[...m.keys()][i]??null,getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)}};
@@ -7,7 +8,7 @@ function setup(storage=memory()){
  const request=fn=>({setHeader:(k,v)=>{s.calls.push({header:[k,v]});return fn()}});
  const client={auth:{getSession:async()=>({data:{session:{user:{id:s.owner},access_token:'synthetic-'+s.owner}},error:null})},
   from:()=>{let key;const q={select:()=>q,eq:(k,v)=>{if(k==='idempotency_key')key=v;return q},maybeSingle:()=>request(async()=>({data:s.rows.get(key)??null,error:null}))};return q},
-  rpc:(name,args)=>request(async()=>{s.calls.push({name,args:structuredClone(args)});if(s.mode==='contract')return {error:{code:'AK103'}};
+  rpc:(name,args)=>request(async()=>{s.calls.push({name,args:structuredClone(args)});if(name==='ga_roadmap_consumer_status'){if(s.statusError)return {error:{code:'40001'}};if(s.statusWrong)return consumerAck(args.p_seq+1,'session.completed','reported');const r=[...s.rows.values()].find(r=>r.seq===args.p_seq);return r.status==='delivered'?consumerAck(r.seq,'session.completed','reported'):{data:{seq:r.seq,kind:'session.completed',status:'pending'}}}if(s.mode==='contract')return {error:{code:'AK103'}};
    s.rows.set(args.p.idempotency_key,{...args.p,user_id:s.owner,seq:20,status:'pending'});if(s.mode==='hold')return new Promise(resolve=>s.finish=()=>resolve({data:{seq:20,status:'pending'}}));return s.mode==='lost'?{error:{code:'504'}}:{data:{seq:20,status:s.mode==='queued'?'queued':'pending'}}})};
  s.caller=createStudyCaller({client,storage,clock:()=>s.time,notify:m=>s.message=m});s.caller.bind({owner:id(1),ownUser:id(2)});return s;
 }
@@ -39,4 +40,11 @@ test('missing day, duplicate parameters, changed launch, foreign task and quota 
  const s=setup();for(const raw of [url().replace('rm_day=2026-11-26','rm_day='),url().replace('#keep','&rm_day=2026-11-27#keep')])assert.throws(()=>s.caller.init(raw));
  s.caller.init(url());assert.throws(()=>s.caller.init(url().replace('2026-11-26','2026-11-27')),/changed/);assert.equal(await s.caller.complete({feedback:{mode:'goi'}}),false);s.caller.init(url());await assert.rejects(()=>s.caller.complete({taskId:id(9),feedback:{mode:'goi'}}),/original/);
  s.storage.setItem=()=>{throw Error('Quota')};await assert.rejects(()=>s.caller.complete({feedback:{mode:'goi'}}),/Quota/);assert.equal(s.calls.length,0);
+});
+
+test('a public delivered flag and foreign private acknowledgement cannot confirm the original study sender',async()=>{
+ const s=setup();s.caller.init(url());await s.caller.complete({feedback:{mode:'goi'}});const p=s.caller.list()[0];
+ s.rows.get(p.effect.idempotency_key).status='delivered';s.statusError=true;await assert.rejects(()=>s.caller.retry(p),/not confirmed/);assert.equal(s.caller.list().length,1);
+ s.statusError=false;s.statusWrong=true;await assert.rejects(()=>s.caller.retry(p),/not confirmed/);assert.equal(s.caller.list().length,1);
+ s.statusWrong=false;assert.equal(await s.caller.retry(p),true);assert.equal(s.caller.list().length,0);assert.equal(s.calls.filter(c=>c.name==='akatsuki_publish').length,1);
 });
