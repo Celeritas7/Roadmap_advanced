@@ -1,3 +1,4 @@
+import {confirmConsumer} from './consumer-ack.ts'
 import type {RpcClient} from './session-contract.ts'
 import type {SessionRow} from '../types.ts'
 export type StudyEnvelope={seq:number;taskId:string;day:string}
@@ -14,7 +15,7 @@ export function studyEnvelope(x:unknown):StudyEnvelope{
 }
 export function createStudyReports({client,storage}:{client:RpcClient;storage:Storage}){
  let owner:string|null=null,epoch=0,running:{key:string;promise:Promise<StudyResult>}|null=null
- const listeners=new Set<()=>void>(),receipts=new WeakMap<StudyResult,{raw:string;value:string}>()
+ const listeners=new Set<()=>void>(),receipts=new WeakMap<StudyResult,{raw:string;value:string;confirmed?:boolean;confirming?:Promise<void>}>()
  const notify=()=>{for(const fn of listeners)fn()},context=():StudyContext=>({owner,epoch})
  function assertContext(c:StudyContext){if(!owner||owner!==c.owner||epoch!==c.epoch)throw Error('Account changed. Original study delivery stays saved.')}
  const prefix=(o:string)=>'rm-study-report-v1:'+o+':',key=(p:StudyIntent)=>prefix(p.owner)+p.event.seq
@@ -37,7 +38,7 @@ export function createStudyReports({client,storage}:{client:RpcClient;storage:St
   const current=()=>{assertContext(actor);if(storage.getItem(key(p))!==raw)throw Error('Newer saved study delivery exists.')}
   const work=(async()=>{
    // The server reads the stored stream; no browser payload, source or verification is authoritative.
-   const {data,error}=await client.rpc('ga_roadmap_receive_study_report',{p_seq:p.event.seq});current()
+   const {data,error}=await client.rpc('ga_roadmap_receive_study_event',{p_seq:p.event.seq});current()
    if(error)throw Object.assign(Error(error.code==='42501'?'Study access is paused or caller review is required.':error.code==='40001'?'Study record or contract changed; review before retrying.':'Study delivery was not confirmed. Retry the original.'),{code:error.code})
    if(!object(data)||data.seq!==p.event.seq||data.task_id!==p.event.taskId||data.day_key!==p.event.day||typeof data.replayed!=='boolean'||
     !['reported','preserved','superseded','removed'].includes(String(data.outcome)))throw Error('Study acknowledgement was not confirmed.')
@@ -51,9 +52,19 @@ export function createStudyReports({client,storage}:{client:RpcClient;storage:St
   })()
   running={key:flight,promise:work};notify();void work.finally(()=>{if(running?.promise===work)running=null;notify()}).catch(()=>{});return work
  }
- function acknowledge(result:StudyResult){assertContext(result.context);const proof=receipts.get(result),k=prefix(owner!)+result.event.seq
+ function proofFor(result:StudyResult){assertContext(result.context);const proof=receipts.get(result),k=prefix(owner!)+result.event.seq
   if(!proof||JSON.stringify(result)!==proof.value||storage.getItem(k)!==proof.raw)throw Error('Saved study delivery changed. Review before continuing.')
+  return {proof,k}
+ }
+ function confirm(result:StudyResult):Promise<void>{
+  let proof:ReturnType<typeof proofFor>['proof'];try{proof=proofFor(result).proof}catch(e){return Promise.reject(e)}
+  if(proof.confirmed)return Promise.resolve();if(proof.confirming)return proof.confirming
+  const work=confirmConsumer(client,result.event.seq,'session.completed',()=>{proofFor(result)}).then(()=>{proof.confirmed=true})
+  proof.confirming=work;void work.finally(()=>{delete proof.confirming}).catch(()=>{});return work
+ }
+ function acknowledge(result:StudyResult){const {proof,k}=proofFor(result)
+  if(!proof.confirmed)throw Error('Server acknowledgement is required. Original study delivery stays saved.')
   storage.removeItem(k);receipts.delete(result);notify()
  }
- return {prepare,run,acknowledge,list,context,assertContext,notify,busy:()=>!!running,bind(next:string|null){if(next!==owner){owner=next;epoch++;notify()}},subscribe(fn:()=>void){listeners.add(fn);return()=>{listeners.delete(fn)}}}
+ return {prepare,run,confirm,acknowledge,list,context,assertContext,notify,busy:()=>!!running,bind(next:string|null){if(next!==owner){owner=next;epoch++;notify()}},subscribe(fn:()=>void){listeners.add(fn);return()=>{listeners.delete(fn)}}}
 }

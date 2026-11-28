@@ -1,13 +1,14 @@
 import {writeFile,cp} from 'node:fs/promises';
 import {join} from 'node:path';
 export async function prepareSuggestions(stage,original){
- for(const file of ['account-rpc.ts','suggestion-contract.ts','suggestion-sync.ts','SuggestionRecovery.tsx'])
+ for(const file of ['consumer-ack.ts','account-rpc.ts','suggestion-contract.ts','suggestion-sync.ts','SuggestionRecovery.tsx'])
   await cp(new URL('./'+file,import.meta.url),join(stage,'src/store',file));
  let source=original['src/lib/suggester.ts'];
  const begin=source.indexOf('  const sid = String(p.suggestion_id'),end=source.indexOf('\n}\n',begin);
  if(begin<0||end<0)throw Error('Suggestion answer source changed');
- source=source.slice(0,begin)+'  await answerSuggestion(p,fromApp,seq)'+source.slice(end);
- source="import {answerSuggestion,registerAnswerView,suggestionAnswers} from '../store/suggestion-sync.ts'\n"+source
+ source=source.slice(0,begin)+'  await answerSuggestion(p,fromApp,seq)\n  return seq===null?undefined:{acknowledged:true as const,seq}'+source.slice(end);
+ source="import {flushSync} from 'react-dom'\nimport {answerSuggestion,registerAnswerView,suggestionAnswers} from '../store/suggestion-sync.ts'\n"+source
+  .replace('seq: number | null): Promise<void>', 'seq: number | null): Promise<{acknowledged:true;seq:number}|void>')
   .replace('if (!reason) { latest = prev; return }','if (!reason) { latest = prev; await publishSavedSuggestion(prev); return }')
   .replace("    if (isNative(t.addr)) await hub.clearSuggestion()   // Roadmap-only: other apps must not show a stale WF one\n    else await hub.suggest({ id, task: t.addr, title: t.title, level: t.level ?? null, say, toneStep: step, until })\n    await banner?.refresh()",'    await publishSavedSuggestion(latest)')
   .replace("if (error) console.warn('[ak] markDone', error.message)",'if (error) throw error');
@@ -23,11 +24,12 @@ registerAnswerView(async result=>{
  if(!store)throw Error('Wait for Roadmap to load before showing answers.')
  suggestionAnswers.assertContext(result.context)
  if(result.row?.answer==='start'&&result.row.rm_task_id){
+  const before=JSON.stringify(store.getState().sessions)
   const sessions=await sessionSync.fetchSessions();suggestionAnswers.assertContext(result.context)
+  if(JSON.stringify(store.getState().sessions)!==before)throw Error('Newer local study work was kept; reload before retrying.')
   store.setState({sessions})
  }
- if(!latest||latest.id===result.row?.id)latest=result.row
- bump()
+ flushSync(()=>{if(!latest||latest.id===result.row?.id)latest=result.row;bump()})
 })
 `;
  await writeFile(join(stage,'src/lib/suggester.ts'),source);
@@ -40,5 +42,7 @@ registerAnswerView(async result=>{
   .replace("const out = await opts.onAnswer(r.payload, r.from_app, r.seq);",`let out;
             try { out = await opts.onAnswer(r.payload, r.from_app, r.seq); }
             catch(e) { if(e && e.code === '22023') return { reject: 'malformed suggestion answer' }; throw e; }`);
+ const answerStart=adapter.indexOf("'suggestion.answered':"),answerEnd=adapter.indexOf("'session.completed':",answerStart);
+ adapter=adapter.slice(0,answerStart)+adapter.slice(answerStart,answerEnd).replace('return passDefer(out) || {};','return passDefer(out) || out || {};')+adapter.slice(answerEnd);
  await writeFile(join(stage,'public/akatsuki/rm-adapter.js'),adapter);
 }

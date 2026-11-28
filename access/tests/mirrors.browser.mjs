@@ -82,7 +82,7 @@ test('canonical deletion is acknowledged through the checked path and generic wr
  assert.ok(await page.evaluate(()=>window.state().tree.find(t=>t.id.endsWith('003')).tags.includes('orphaned')));
  const before=await page.evaluate(()=>window.calls.length);
  const errors=await page.evaluate(async()=>{const out=[];for(const name of ['ack','reply','orphan','put','remove','addPlace','editPlace','retirePlace'])try{await window.adapter.hub[name]()}catch(e){out.push(e.message)}return out});assert.equal(errors.length,8);assert.equal(await page.evaluate(()=>window.calls.length),before);
- await page.evaluate(()=>window.extraEvents=[{seq:99,from_app:'other',to_app:'rm',kind:'task.upsert'},{seq:100,from_app:'jlpt',to_app:'rm',kind:'session.completed'}]);await page.evaluate(()=>window.consume());assert.equal(await page.evaluate(()=>window.calls.length),before+1);
+ await page.evaluate(()=>window.extraEvents=[{seq:99,from_app:'other',to_app:'rm',kind:'task.upsert'},{seq:100,from_app:'jlpt',to_app:'rm',kind:'unreviewed.kind'}]);await page.evaluate(()=>window.consume());assert.equal(await page.evaluate(()=>window.calls.length),before+1);
 }));
 test('account switch during a committed but delayed acknowledgement retains the original owner delivery',async()=>fixture(async page=>{
  await page.evaluate(()=>{window.mode='holdAck';window.flight=window.deliver()});await page.waitForFunction(()=>!!window.finishAck);

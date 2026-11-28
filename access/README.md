@@ -588,3 +588,45 @@ original pending slots and the deferred restoration checkpoint; do not clear dat
 Next: exact-request acknowledgement/reply contracts for remaining prepared
 suggestion/study consumers, followed by shared-document/place writers and sender
 policy/caller cutovers. Hosted changes and learner enrollment remain on hold.
+
+
+## Exact-event suggestion and study acknowledgements (G0 preparation)
+
+Commonplace #148 and Roadmap #31 are merged. This isolated follow-up pairs with
+Commonplace candidate `22_roadmap_consumer_acknowledgements.sql` and
+[consumer acknowledgement readiness](https://github.com/Celeritas7/Commonplace/blob/fix/g0-consumer-ack-isolated-a613/platform/acceptance/ROADMAP-CONSUMER-ACK-READINESS.md).
+Only `access/` and generated loopback copies change. Root runtime, deployment,
+automatic hub boot, existing Auth storage and offline packs remain unchanged.
+
+Incoming suggestion answers now call `ga_roadmap_receive_suggestion_event` with
+sequence, saved request ID and original logical day. Native RM answers use
+`ga_roadmap_answer_local_suggestion` with no event sequence. Study delivery calls
+`ga_roadmap_receive_study_event`. Both real prepared handlers apply current rows,
+flush subscribed views and call `ga_roadmap_ack_consumer_event` before clearing
+saved owner-specific intent. Newer session edits, account changes and failed/lost
+acknowledgements preserve recovery. Skip answers first publish their original
+receipt-derived follow-up; the server verifies that exact effect before ack.
+
+The copied SDK and adapter consume the source-reviewed suggestion/study kinds,
+propagate exact-sequence proof and never call generic ack/reply/defer. Neither
+incoming contract defines a reply payload, so none is invented. Other incoming
+kinds and direct document/place writers stay gated. The prepared JLPT caller also
+checks its exact original effect, including clock, and private status via
+`ga_roadmap_consumer_status`; a mutable delivered flag alone cannot confirm it.
+The captured owner token and epoch checks cover this additional asynchronous call.
+
+Candidate 22 starts with empty per-owner/source/kind gates; candidate 20 source
+review is also required for studies. It revokes the former incoming API grants,
+so SQL and client require a coordinated future cutover. Old receipts/terminal
+rows need explicit reconciliation. The original banner and actual study apps are
+not deployed or modified by this preparation. Source labels are not sender
+attestation; stored follow-ups are not proof of WF application. Legacy shared hub
+write grants, caller key agreements and the wider G0 gates remain open.
+
+Tests cover copied SDK/adapter/handlers together, render-before-ack, lost replies
+across reload, delayed account responses, newer local edits, required follow-ups,
+private caller confirmation and unchanged personal/offline bytes. Transport is
+synthetic; real Auth/Postgres concurrency is in the paired Commonplace acceptance.
+Next: shared-document/place writers with version checks, then sender policy and
+actual caller cutovers. Hosted changes and learner enrollment remain held;
+restoration stays deferred at its existing checkpoint.

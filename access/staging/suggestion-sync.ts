@@ -27,8 +27,11 @@ export function retrySuggestionAnswer(p:AnswerIntent):Promise<void>{
  try{ready();suggestionAnswers.assertContext({...actor,owner:p.owner})}catch(e){return Promise.reject(e)}
  if(applying)return applying.owner===actor.owner&&applying.epoch===actor.epoch&&applying.requestId===p.requestId?applying.promise:Promise.reject(Error('Wait for the current suggestion answer.'))
  const work=(async()=>{
+  const before=JSON.stringify(useStore.getState().sessions)
   const result=await suggestionAnswers.run(p);ready();suggestionAnswers.assertContext(result.context)
+  if(JSON.stringify(useStore.getState().sessions)!==before)throw Error('Newer local study work was kept; reload before retrying the answer.')
   await applyView!(result);ready();suggestionAnswers.assertContext(result.context)
+  await suggestionAnswers.confirm(result);ready();suggestionAnswers.assertContext(result.context)
   suggestionAnswers.acknowledge(result);setSuggestionMessage(result.outcome==='unknown'?'Unknown suggestion reply was recorded.':'Suggestion answer confirmed.')
  })()
  applying={...actor,requestId:p.requestId,promise:work}

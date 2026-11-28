@@ -1,9 +1,10 @@
+import {confirmConsumer} from './consumer-ack.ts'
 import type {RpcClient} from './session-contract.ts'
 import type {SuggestionRow} from '../lib/suggester.ts'
 export type AnswerPayload={suggestion_id:string;action:'start'|'skip'|'dismiss';reason:string|null;from_app:string;seq:number|null;day_key:string;at:string|null}
 export type AnswerIntent={version:1;owner:string;requestId:string;payload:AnswerPayload;blocked?:string}
 export type AnswerContext={owner:string|null;epoch:number}
-export type AnswerResult={context:AnswerContext;requestId:string;row:SuggestionRow|null;outcome:'applied'|'already_answered'|'unknown'}
+export type AnswerResult={context:AnswerContext;requestId:string;seq:number|null;row:SuggestionRow|null;outcome:'applied'|'already_answered'|'unknown'}
 const object=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==='object'&&!Array.isArray(x)
 const uuid=(x:unknown):x is string=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x)
 const bytes=(x:string)=>new TextEncoder().encode(x).length
@@ -32,7 +33,7 @@ function parse(raw:string):AnswerIntent{
 }
 export function createSuggestionAnswers({client,storage,uuid:makeId}:{client:RpcClient;storage:Storage;uuid:()=>string}){
  let owner:string|null=null,epoch=0,running:{key:string;promise:Promise<AnswerResult>}|null=null
- const listeners=new Set<()=>void>(),receipts=new WeakMap<AnswerResult,{raw:string;result:string}>()
+ const listeners=new Set<()=>void>(),receipts=new WeakMap<AnswerResult,{raw:string;result:string;confirmed?:boolean;confirming?:Promise<void>}>()
  const notify=()=>{for(const fn of listeners)fn()},context=():AnswerContext=>({owner,epoch})
  function assertContext(c:AnswerContext){if(!owner||c.owner!==owner||c.epoch!==epoch)throw Error('Account changed. The original answer stays saved.')}
  const prefix=(actor:string)=>'rm-suggestion-answer-v1:'+actor+':',key=(p:AnswerIntent)=>prefix(p.owner)+p.requestId
@@ -64,10 +65,11 @@ export function createSuggestionAnswers({client,storage,uuid:makeId}:{client:Rpc
   if(running)return running.key===flight?running.promise:Promise.reject(Error('Wait for the current suggestion answer.'))
   const current=()=>{assertContext(actor);if(storage.getItem(key(p))!==raw)throw Error('Newer saved answer exists. Review before continuing.')}
   const work=(async()=>{
-   const {data,error}=await client.rpc('ga_roadmap_answer_suggestion',{p_payload:p.payload,p_request_id:p.requestId});current()
+   const {data,error}=await client.rpc(p.payload.seq===null?'ga_roadmap_answer_local_suggestion':'ga_roadmap_receive_suggestion_event',p.payload.seq===null?{p_payload:p.payload,p_request_id:p.requestId}:{p_seq:p.payload.seq,p_request_id:p.requestId,p_day_key:p.payload.day_key});current()
    if(error)throw Object.assign(Error(error.code==='42501'?'Access denied or saving paused. The answer stays saved.':error.code==='40001'?'Existing answer needs reconciliation. The answer stays saved.':'Answer was not confirmed. The original stays saved.'),{code:error.code})
    if(!object(data)||data.request_id!==p.requestId||!uuid(data.receipt_id)||typeof data.replayed!=='boolean'||(!data.replayed||p.payload.seq===null)&&data.receipt_id!==p.requestId||
     !['applied','already_answered','unknown'].includes(String(data.outcome)))throw Error('Answer acknowledgement was not confirmed.')
+   if(p.payload.seq!==null&&(data.seq!==p.payload.seq||!object(data.normalized)||!same({...data.normalized,day_key:p.payload.day_key},p.payload)))throw Error('Original suggestion event was not confirmed.')
    const row=data.suggestion
    if(row!==null&&(!object(row)||row.id!==p.payload.suggestion_id||row.user_id!==p.owner||!object(row.task)||typeof row.title!=='string'||
     !stamp(row.made_at)||!stamp(row.until)||row.rm_task_id!==null&&!uuid(row.rm_task_id)||row.answered_at!==null&&!stamp(row.answered_at)||
@@ -89,17 +91,27 @@ export function createSuggestionAnswers({client,storage,uuid:makeId}:{client:Rpc
     if(blocked||closed){storage.setItem(key(p),JSON.stringify({...p,blocked:blocked??'AK202'}));notify();throw Error('Hub contract requires review ('+(blocked??'AK202')+'). The saved answer is retained.')}
     if(sent.error||!object(result)||!integer(result.seq)||!['pending','skipped','closed'].includes(String(result.status)))throw Error('Hub delivery is not confirmed. Retry the original saved answer.')
    }
-   current();const result:AnswerResult={context:actor,requestId:p.requestId,row:row as SuggestionRow|null,outcome:data.outcome as AnswerResult['outcome']}
+   current();const result:AnswerResult={context:actor,requestId:p.requestId,seq:p.payload.seq,row:row as SuggestionRow|null,outcome:data.outcome as AnswerResult['outcome']}
    receipts.set(result,{raw,result:JSON.stringify(result)});return result
   })()
   running={key:flight,promise:work};notify();void work.finally(()=>{if(running?.promise===work)running=null;notify()}).catch(()=>{});return work
  }
- function acknowledge(result:AnswerResult){
+ function proofFor(result:AnswerResult){
   assertContext(result.context);const proof=receipts.get(result),k=prefix(owner!)+result.requestId
   if(!proof||JSON.stringify(result)!==proof.result||storage.getItem(k)!==proof.raw)throw Error('Saved answer changed. Review before continuing.')
+  return {proof,k}
+ }
+ function confirm(result:AnswerResult):Promise<void>{
+  let proof:ReturnType<typeof proofFor>['proof'];try{proof=proofFor(result).proof}catch(e){return Promise.reject(e)}
+  if(result.seq===null||proof.confirmed)return Promise.resolve();if(proof.confirming)return proof.confirming
+  const work=confirmConsumer(client,result.seq,'suggestion.answered',()=>{proofFor(result)}).then(()=>{proof.confirmed=true})
+  proof.confirming=work;void work.finally(()=>{delete proof.confirming}).catch(()=>{});return work
+ }
+ function acknowledge(result:AnswerResult){const {proof,k}=proofFor(result)
+  if(result.seq!==null&&!proof.confirmed)throw Error('Server acknowledgement is required. Original answer stays saved.')
   storage.removeItem(k);receipts.delete(result);notify()
  }
- return {prepare,run,acknowledge,list,context,assertContext,notify,busy:()=>!!running,
+ return {prepare,run,confirm,acknowledge,list,context,assertContext,notify,busy:()=>!!running,
   bind(next:string|null){if(next!==owner){owner=next;epoch++;notify()}},
   subscribe(fn:()=>void){listeners.add(fn);return()=>{listeners.delete(fn)}}}
 }
