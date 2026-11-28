@@ -622,3 +622,41 @@ by Chromium socket setup; use the existing CI runner for that evidence.
 Next: shared-document/place version checks and conflict recovery, then sender
 policy, actual caller cutover and the remaining G0 gates. Hosted changes and
 learner enrollment stay on hold; restoration remains deferred.
+
+## Shared document/place version preparation — 2026-11-28
+
+Follows merged Commonplace #151 and Roadmap #33. Candidate 23 in Commonplace
+adds gated `ga_roadmap_shared_read` / `ga_roadmap_shared_write` contracts for
+Roadmap-owned document paths and place metadata. Read returns the full current
+row and an opaque version. Save supplies that exact version and a stable request
+UUID; conflicts return current data without changing it. A committed retry
+returns its original receipt and the latest row, preserving later edits,
+tombstones, coordinates and retirement.
+
+The copied SDK exposes `reviewShared`, `prepareShared`, `saveShared` and
+`confirmShared`. Explicit snapshot proof is required. Existing implicit
+document/place methods stay gated, as do tag guesses, suggestion generation and
+automatic banner work; none may infer a fresh version for an old draft.
+
+`shared-writer-contract.ts` persists an owner-bound intent before sending and
+serializes local changes with Web Locks. Nested payload mismatches, malformed
+replies, A–B–A account changes, altered saved bytes and storage failures retain
+recovery. Unsupported Web Locks pauses saves. The recovery component renders
+the latest confirmed row before closing a successful request.
+
+Conflicts compare the latest shared value and the original saved draft.
+Reapplying creates a new UUID against the explicitly reviewed version; a further
+server edit conflicts again. Keeping current data sends no mutation. Both
+choices retain the old draft in visible local history. History has per-target
+and aggregate limits; no automatic pruning or legacy-key migration occurs.
+
+Contract/browser tests cover exact replies, reload, quotas, real copied SDK
+calls, two-tab contention and the recovery controls. Commonplace's disposable
+Auth/Postgres suite checks concurrent saves and legacy-edit/revocation lock
+waits. Only `access/` changes; final-head CI is preparation evidence, not hosted
+or physical-device acceptance. See
+[shared writer readiness](https://github.com/Celeritas7/Commonplace/blob/main/platform/acceptance/ROADMAP-SHARED-WRITER-READINESS.md).
+
+Next: inventory live writers and define sender authority before coordinated
+caller cutovers. Existing global writer grants/RPCs are not revoked by this
+phase. G0 and learner enrollment remain held; restoration remains deferred.
